@@ -1,0 +1,27 @@
+{
+  "name": "telos-evm",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eosrio/hyperion-telos-evm-plugin.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/eosrio/hyperion-telos-evm-plugin/issues"
+  },
+  "homepage": "https://github.com/eosrio/hyperion-telos-evm-plugin#readme",
+  "dependencies": {
+    "@ethereumjs/common": "^2.1.0",
+    "@ethereumjs/tx": "^3.0.2",
+    "bn.js": "^5.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^4.2.3"
+  }
+}
