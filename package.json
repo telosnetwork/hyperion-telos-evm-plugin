@@ -17,9 +17,10 @@
   },
   "homepage": "https://github.com/eosrio/hyperion-telos-evm-plugin#readme",
   "dependencies": {
-    "@ethereumjs/common": "^2.1.0",
-    "@ethereumjs/tx": "^3.0.2",
-    "bn.js": "^5.2.0"
+    "@ethereumjs/common": "2.2.0",
+    "@ethereumjs/tx": "3.1.1",
+    "bn.js": "^5.2.0",
+    "keccak": "^3.0.1"
   },
   "devDependencies": {
     "typescript": "^4.2.3"

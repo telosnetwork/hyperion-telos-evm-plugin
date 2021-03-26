@@ -1,4 +1,5 @@
 import {FastifyInstance, FastifyReply, FastifyRequest} from "fastify";
+import {hLog} from "../../../../../helpers/common_functions";
 
 function jsonRcp2Error(reply: FastifyReply, type: string, requestId: string, message: string, code?: number) {
 	let errorCode = code;
@@ -78,7 +79,7 @@ export default async function (fastify: FastifyInstance, opts: any) {
 			if (fromBlock || toBlock) {
 				throw new Error('fromBlock/toBlock are not allowed with blockHash query');
 			}
-			return [];
+			queryBody.bool.must.push({term: {"@evmReceipt.block_hash": blockHash}})
 		}
 
 		if (fromBlock || toBlock) {
@@ -127,18 +128,20 @@ export default async function (fastify: FastifyInstance, opts: any) {
 			for (const hit of searchResults.body.hits.hits) {
 				const doc = hit._source;
 				if (doc['@evmReceipt'] && doc['@evmReceipt']['logs']) {
+					let logCount = 0;
 					for (const log of doc['@evmReceipt']['logs']) {
 						results.push({
 							address: '0x' + log.address,
-							blockHash: '__pending__',
+							blockHash: doc['@evmReceipt']['block_hash'],
 							blockNumber: doc['@evmReceipt']['block'],
 							data: '0x' + log.data,
-							logIndex: '__pending__',
+							logIndex: parseInt(doc['@evmReceipt']['trx_index'], 10) + logCount,
 							removed: false,
 							topics: log.topics.map(t => '0x' + t),
 							transactionHash: doc['@evmReceipt']['hash'],
 							transactionIndex: doc['@evmReceipt']['trx_index']
 						});
+						logCount++;
 					}
 				}
 			}
@@ -158,14 +161,14 @@ export default async function (fastify: FastifyInstance, opts: any) {
 		if (jsonrpc !== "2.0") {
 			return jsonRcp2Error(reply, "InvalidRequest", id, "Invalid JSON RPC");
 		}
-		console.log(`[${method}] - ${JSON.stringify(params)} (id=${id})`);
+		hLog(`[${method}] - ${JSON.stringify(params)} (id=${id})`);
 		if (methods.has(method)) {
 			const func = methods.get(method);
 			try {
 				const result = await func(params);
 				reply.send({id, jsonrpc, result});
 			} catch (e) {
-				console.log(e.message);
+				hLog(e.message);
 				return jsonRcp2Error(reply, "InternalError", id, e.message);
 			}
 		} else {

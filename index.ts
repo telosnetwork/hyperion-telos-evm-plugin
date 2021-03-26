@@ -4,8 +4,11 @@ import autoLoad from 'fastify-autoload';
 import {join} from "path";
 import {Transaction} from '@ethereumjs/tx';
 import Common, {default as ethCommon} from '@ethereumjs/common';
+import {HyperionDelta} from "../../../interfaces/hyperion-delta";
+import {HyperionAction} from "../../../interfaces/hyperion-action";
 
 const BN = require('bn.js');
+const createKeccakHash = require('keccak');
 
 interface TelosEvmConfig {
 	contracts: {
@@ -13,7 +16,6 @@ interface TelosEvmConfig {
 	}
 	chainId: number;
 }
-
 
 export default class TelosEvm extends HyperionPlugin {
 
@@ -58,6 +60,7 @@ export default class TelosEvm extends HyperionPlugin {
 							"hash": {"type": "keyword"},
 							"trx_index": {"type": "long"},
 							"block": {"type": "long"},
+							"block_hash": {"type": "keyword"},
 							"trxid": {"type": "keyword"},
 							"status": {"type": "byte"},
 							"epoch": {"type": "long"},
@@ -77,13 +80,18 @@ export default class TelosEvm extends HyperionPlugin {
 					}
 				}
 			},
-			handler: async (delta) => {
+			handler: async (delta: HyperionDelta) => {
 				const data = delta.data;
+
+				const blockHex = (data.block as number).toString(16);
+				const blockHash = createKeccakHash('keccak256').update(blockHex).digest('hex');
+
 				delta['@evmReceipt'] = {
 					index: data.index,
 					hash: data.hash.toLowerCase(),
 					trx_index: data.trx_index,
 					block: data.block,
+					block_hash: blockHash,
 					trxid: data.trxid.toLowerCase(),
 					status: data.status,
 					epoch: data.epoch,
@@ -92,6 +100,8 @@ export default class TelosEvm extends HyperionPlugin {
 					ramused: parseInt('0x' + data.ramused),
 					output: data.output
 				};
+
+				console.log(data.trx_index);
 
 				if (data.logs) {
 					delta['@evmReceipt']['logs'] = JSON.parse(data.logs);
@@ -142,7 +152,7 @@ export default class TelosEvm extends HyperionPlugin {
 					}
 				}
 			},
-			handler: (action) => {
+			handler: (action: HyperionAction) => {
 				// attach action extras here
 				const data = action['act']['data'];
 				this.counter++;
@@ -150,7 +160,7 @@ export default class TelosEvm extends HyperionPlugin {
 				// decode internal EVM tx
 				if (data.tx) {
 					try {
-						const tx = Transaction.fromRlpSerializedTx(Buffer.from(data.tx, 'hex'), {
+						const tx = Transaction.fromSerializedTx(Buffer.from(data.tx, 'hex'), {
 							common: this.common,
 						});
 						const txBody = {
@@ -176,7 +186,6 @@ export default class TelosEvm extends HyperionPlugin {
 							txBody['value_d'] = tx.value / this.decimalsBN;
 						}
 						action['@raw'] = txBody;
-						console.log(this.counter, txBody.hash);
 						delete action['act']['data'];
 					} catch (e) {
 						console.log(e);

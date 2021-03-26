@@ -60,6 +60,7 @@ var path_1 = require("path");
 var tx_1 = require("@ethereumjs/tx");
 var common_1 = __importDefault(require("@ethereumjs/common"));
 var BN = require('bn.js');
+var createKeccakHash = require('keccak');
 var TelosEvm = /** @class */ (function (_super) {
     __extends(TelosEvm, _super);
     function TelosEvm(config) {
@@ -98,6 +99,7 @@ var TelosEvm = /** @class */ (function (_super) {
                             "hash": { "type": "keyword" },
                             "trx_index": { "type": "long" },
                             "block": { "type": "long" },
+                            "block_hash": { "type": "keyword" },
                             "trxid": { "type": "keyword" },
                             "status": { "type": "byte" },
                             "epoch": { "type": "long" },
@@ -118,14 +120,17 @@ var TelosEvm = /** @class */ (function (_super) {
                 }
             },
             handler: function (delta) { return __awaiter(_this, void 0, void 0, function () {
-                var data;
+                var data, blockHex, blockHash;
                 return __generator(this, function (_a) {
                     data = delta.data;
+                    blockHex = data.block.toString(16);
+                    blockHash = createKeccakHash('keccak256').update(blockHex).digest('hex');
                     delta['@evmReceipt'] = {
                         index: data.index,
                         hash: data.hash.toLowerCase(),
                         trx_index: data.trx_index,
                         block: data.block,
+                        block_hash: blockHash,
                         trxid: data.trxid.toLowerCase(),
                         status: data.status,
                         epoch: data.epoch,
@@ -134,6 +139,7 @@ var TelosEvm = /** @class */ (function (_super) {
                         ramused: parseInt('0x' + data.ramused),
                         output: data.output
                     };
+                    console.log(data.trx_index);
                     if (data.logs) {
                         delta['@evmReceipt']['logs'] = JSON.parse(data.logs);
                         if (delta['@evmReceipt']['logs'].length === 0) {
@@ -192,7 +198,7 @@ var TelosEvm = /** @class */ (function (_super) {
                 // decode internal EVM tx
                 if (data.tx) {
                     try {
-                        var tx = tx_1.Transaction.fromRlpSerializedTx(Buffer.from(data.tx, 'hex'), {
+                        var tx = tx_1.Transaction.fromSerializedTx(Buffer.from(data.tx, 'hex'), {
                             common: _this.common,
                         });
                         var txBody = {
@@ -218,7 +224,6 @@ var TelosEvm = /** @class */ (function (_super) {
                             txBody['value_d'] = tx.value / _this.decimalsBN;
                         }
                         action['@raw'] = txBody;
-                        console.log(_this.counter, txBody.hash);
                         delete action['act']['data'];
                     }
                     catch (e) {
