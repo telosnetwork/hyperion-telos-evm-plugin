@@ -18,3 +18,13 @@ Required Config on chain.config.json
   }
 }
 ```
+
+### Implemented Routes
+
+#### /evm (JSON RPC 2.0)
+
+Methods:
+  - eth_getLogs
+  - net_listening
+  - eth_blockNumber
+  - ...
