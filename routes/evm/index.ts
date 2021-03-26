@@ -1,5 +1,6 @@
 import {FastifyInstance, FastifyReply, FastifyRequest} from "fastify";
 import {hLog} from "../../../../../helpers/common_functions";
+import {TelosEvmConfig} from "../../index";
 
 function jsonRcp2Error(reply: FastifyReply, type: string, requestId: string, message: string, code?: number) {
 	let errorCode = code;
@@ -44,7 +45,7 @@ function jsonRcp2Error(reply: FastifyReply, type: string, requestId: string, mes
 	};
 }
 
-export default async function (fastify: FastifyInstance, opts: any) {
+export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 	const methods: Map<string, (params?: any) => Promise<any> | any> = new Map();
 
@@ -58,6 +59,93 @@ export default async function (fastify: FastifyInstance, opts: any) {
 			throw new Error('Request Failed: ' + e.message);
 		}
 	});
+
+	methods.set('net_version', () => opts.chainId);
+	methods.set('eth_chainId', () => "0x" + opts.chainId.toString(16));
+	methods.set('eth_accounts', () => null);
+
+	// TODO: eth_getTransactionCount
+	methods.set('eth_getTransactionCount', async () => {
+		return 1;
+	});
+
+	// TODO: eth_getCode
+	methods.set('eth_getCode', async () => {
+		return "0x0000";
+	});
+
+	// TODO: eth_getStorageAt
+	methods.set('eth_getStorageAt', async () => {
+		return "0x0000";
+	});
+
+	// TODO: eth_estimateGas
+	methods.set('eth_estimateGas', async () => {
+		return 50000000;
+	});
+
+	methods.set('eth_gasPrice', () => "0x1");
+
+	// TODO: eth_getBalance
+	methods.set('eth_getBalance', async () => {
+		return "0x0000";
+	});
+
+	// TODO: eth_call
+	methods.set('eth_call', async () => {
+		return "0x0000";
+	});
+
+	// TODO: eth_sendRawTransaction
+	methods.set('eth_sendRawTransaction', async () => {
+		return "0x0000";
+	});
+
+	// TODO: eth_sendTransaction
+	methods.set('eth_sendTransaction', async () => {
+		return "0x0000";
+	});
+
+	// TODO: eth_getTransactionReceipt
+	methods.set('eth_getTransactionReceipt', async () => {
+		return "0x0000";
+	});
+
+	// TODO: eth_getTransactionByHash
+	methods.set('eth_getTransactionByHash', async () => {
+		return "0x0000";
+	});
+
+	// TODO: eth_getBlockByNumber
+	methods.set('eth_getBlockByNumber', async () => {
+		return "0x0000";
+	});
+
+	// TODO: eth_getBlockByHash
+	methods.set('eth_getBlockByHash', async () => {
+		return "0x0000";
+	});
+
+	// TODO: eth_getBlockTransactionCountByHash
+	methods.set('eth_getBlockTransactionCountByHash', async () => {
+		return "0x0000";
+	});
+
+	// TODO: eth_getBlockTransactionCountByNumber
+	methods.set('eth_getBlockTransactionCountByNumber', async () => {
+		return "0x0000";
+	});
+
+	// TODO: eth_getUncleCountByBlockHash
+	methods.set('eth_getUncleCountByBlockHash', async () => {
+		return "0x0000";
+	});
+
+	// TODO: eth_getUncleCountByBlockNumber
+	methods.set('eth_getUncleCountByBlockNumber', async () => {
+		return "0x0000";
+	});
+
 
 	methods.set('eth_getLogs', async (params) => {
 		// query preparation

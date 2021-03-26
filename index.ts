@@ -10,7 +10,7 @@ import {HyperionAction} from "../../../interfaces/hyperion-action";
 const BN = require('bn.js');
 const createKeccakHash = require('keccak');
 
-interface TelosEvmConfig {
+export interface TelosEvmConfig {
 	contracts: {
 		main: string;
 	}
@@ -28,10 +28,12 @@ export default class TelosEvm extends HyperionPlugin {
 	baseChain = 'mainnet';
 	hardfork = 'istanbul';
 	counter = 0;
+	pluginConfig: TelosEvmConfig;
 
 	constructor(config: TelosEvmConfig) {
 		super();
 		if (config) {
+			this.pluginConfig = config;
 			if (config.contracts?.main) {
 				this.dynamicContracts.push(config.contracts.main);
 			}
@@ -198,7 +200,8 @@ export default class TelosEvm extends HyperionPlugin {
 
 	addRoutes(server: FastifyInstance): void {
 		server.register(autoLoad, {
-			dir: join(__dirname, 'routes')
+			dir: join(__dirname, 'routes'),
+			options: this.pluginConfig
 		});
 	}
 }
