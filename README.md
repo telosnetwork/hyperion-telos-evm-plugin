@@ -27,4 +27,7 @@ Methods:
   - eth_getLogs
   - net_listening
   - eth_blockNumber
-  - ...
+  - net_version
+  - eth_chainId
+  - eth_accounts
+  - eth_gasPrice
