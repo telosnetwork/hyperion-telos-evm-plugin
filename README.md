@@ -1,6 +1,6 @@
 # hyperion-telos-evm-plugin
 
-Installation on working Hyperion Indexer/Api
+Installation on working Hyperion Indexer/Api (v3.3+)
 
 ```bash
 npm run plugin-manager install telos-evm
