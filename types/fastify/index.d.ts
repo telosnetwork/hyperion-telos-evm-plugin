@@ -13,6 +13,7 @@ declare module 'fastify' {
 			api: Api
 		},
 		chain_api: string,
-		push_api: string
+		push_api: string,
+		evm: any
 	}
 }

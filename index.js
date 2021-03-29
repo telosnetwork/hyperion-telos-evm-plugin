@@ -55,12 +55,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 var hyperion_plugin_1 = require("../../hyperion-plugin");
+var node_fetch_1 = __importDefault(require("node-fetch"));
 var fastify_autoload_1 = __importDefault(require("fastify-autoload"));
 var path_1 = require("path");
 var tx_1 = require("@ethereumjs/tx");
 var common_1 = __importDefault(require("@ethereumjs/common"));
 var BN = require('bn.js');
 var createKeccakHash = require('keccak');
+var TelosEvmApi = require('@telosnetwork/telosevm-js').TelosEvmApi;
 var TelosEvm = /** @class */ (function (_super) {
     __extends(TelosEvm, _super);
     function TelosEvm(config) {
@@ -74,6 +76,7 @@ var TelosEvm = /** @class */ (function (_super) {
         _this.hardfork = 'istanbul';
         _this.counter = 0;
         if (config) {
+            _this.pluginConfig = config;
             if ((_a = config.contracts) === null || _a === void 0 ? void 0 : _a.main) {
                 _this.dynamicContracts.push(config.contracts.main);
             }
@@ -223,6 +226,7 @@ var TelosEvm = /** @class */ (function (_super) {
                             // @ts-ignore
                             txBody['value_d'] = tx.value / _this.decimalsBN;
                         }
+                        console.log(txBody);
                         action['@raw'] = txBody;
                         delete action['act']['data'];
                     }
@@ -235,8 +239,17 @@ var TelosEvm = /** @class */ (function (_super) {
         });
     };
     TelosEvm.prototype.addRoutes = function (server) {
+        server.decorate('evm', new TelosEvmApi({
+            endpoint: server.chain_api,
+            chainId: this.pluginConfig.chainId,
+            ethPrivateKeys: [],
+            fetch: node_fetch_1.default,
+            telosContract: this.pluginConfig.contracts.main,
+            telosPrivateKeys: []
+        }));
         server.register(fastify_autoload_1.default, {
-            dir: path_1.join(__dirname, 'routes')
+            dir: path_1.join(__dirname, 'routes'),
+            options: this.pluginConfig
         });
     };
     return TelosEvm;

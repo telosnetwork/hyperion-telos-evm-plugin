@@ -1,6 +1,18 @@
 import {FastifyInstance, FastifyReply, FastifyRequest} from "fastify";
 import {hLog} from "../../../../../helpers/common_functions";
 import {TelosEvmConfig} from "../../index";
+import BN from "bn.js";
+
+const abiDecoder = require("abi-decoder");
+const abi = require("ethereumjs-abi");
+
+function numToHex(input: number | string) {
+	if (typeof input === 'number') {
+		return '0x' + input.toString(16)
+	} else {
+		return '0x' + (parseInt(input, 10)).toString(16)
+	}
+}
 
 function jsonRcp2Error(reply: FastifyReply, type: string, requestId: string, message: string, code?: number) {
 	let errorCode = code;
@@ -45,108 +57,538 @@ function jsonRcp2Error(reply: FastifyReply, type: string, requestId: string, mes
 	};
 }
 
+interface EthLog {
+	address: string;
+	blockHash: string;
+	blockNumber: string;
+	data: string;
+	logIndex: string;
+	removed: boolean;
+	topics: string[];
+	transactionHash: string;
+	transactionIndex: string;
+}
+
 export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 	const methods: Map<string, (params?: any) => Promise<any> | any> = new Map();
+	const decimalsBN = new BN('1000000000000000000');
+	const zeros = "0x0000000000000000000000000000000000000000";
+	const chainAddr = [
+		"0xb1f8e55c7f64d203c1400b9d8555d050f94adf39",
+		"0x9f510b19f1ad66f0dcf6e45559fab0d6752c1db7",
+		"0xb8e671734ce5c8d7dfbbea5574fa4cf39f7a54a4",
+		"0xb1d3fbb2f83aecd196f474c16ca5d9cffa0d0ffc",
+	];
+	const chainIds = [1, 3, 4, 42];
+	const METAMASK_EXTENSION_ORIGIN = 'chrome-extension://nkbihfbeogaeaoehlefnkodbefgpgknn';
+	const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
+	const NULL_HASH = '0x0000000000000000000000000000000000000000000000000000000000000000';
 
+	// AUX FUNCTIONS
+
+	async function searchActionByHash(trxHash: string): Promise<any> {
+		try {
+			let _hash = trxHash.toLowerCase();
+			if (_hash.startsWith("0x")) {
+				_hash = _hash.slice(2);
+			}
+			const results = await fastify.elastic.search({
+				index: `${fastify.manager.chain}-action-*`,
+				body: {
+					size: 1,
+					query: {
+						bool: {
+							must: [{term: {"@raw.hash": "0x" + _hash}}]
+						}
+					}
+				}
+			});
+			return results?.body?.hits?.hits[0]?._source;
+		} catch (e) {
+			console.log(e);
+			return null;
+		}
+	}
+
+	async function searchDeltasByHash(trxHash: string): Promise<any> {
+		try {
+			let _hash = trxHash.toLowerCase();
+			if (_hash.startsWith("0x")) {
+				_hash = _hash.slice(2);
+			}
+			const results = await fastify.elastic.search({
+				index: `${fastify.manager.chain}-delta-*`,
+				body: {
+					size: 1,
+					query: {
+						bool: {
+							must: [{term: {"@evmReceipt.hash": _hash}}]
+						}
+					}
+				}
+			});
+			return results?.body?.hits?.hits[0]?._source;
+		} catch (e) {
+			console.log(e);
+			return null;
+		}
+	}
+
+	function buildLogsObject(logs: any[], blHash: string, blNumber: string, txHash: string, txIndex: string): EthLog[] {
+		const _logs: EthLog[] = [];
+		if (logs) {
+			let counter = 0;
+			for (const log of logs) {
+				_logs.push({
+					address: log.address,
+					blockHash: blHash,
+					blockNumber: blNumber,
+					data: log.data,
+					logIndex: numToHex(counter),
+					removed: false,
+					topics: log.topics.map(t => '0x' + t),
+					transactionHash: txHash,
+					transactionIndex: txIndex
+				});
+				counter++;
+			}
+		}
+		return _logs;
+	}
+
+	async function reconstructBlockFromReceipts(receipts: any[], full: boolean) {
+		let actions = [];
+		if (receipts.length > 0) {
+			const rawResults = await fastify.elastic.search({
+				index: `${fastify.manager.chain}-action-*`,
+				body: {
+					size: 1000,
+					track_total_hits: true,
+					query: {
+						bool: {
+							must: [
+								{term: {"act.account": "eosio.evm"}},
+								{term: {"act.name": "raw"}},
+								{term: {"block_num": receipts[0]._source.block_num}}
+							]
+						}
+					}
+				}
+			});
+			actions = rawResults?.body?.hits?.hits;
+		}
+
+		let blockHash;
+		let blockHex: string;
+		let timestamp: number;
+		const trxs = [];
+		for (const receiptDoc of receipts) {
+			const receipt = receiptDoc._source['@evmReceipt'];
+			if (!blockHash) {
+				blockHash = '0x' + receipt['block_hash'];
+			}
+			if (!blockHex) {
+				blockHex = '0x' + Number(receipt['block']).toString(16);
+			}
+			if (!timestamp) {
+				timestamp = new Date(receiptDoc._source['@timestamp'] + 'Z').getTime();
+			}
+			if (!full) {
+				trxs.push('0x' + receipt['hash']);
+			} else {
+				const txRawAction = actions.find(a => {
+					return a._source['@raw']['hash'] === "0x" + receipt['hash']
+				});
+				if (txRawAction) {
+					const rawAction = txRawAction._source['@raw']
+					trxs.push({
+						blockHash: blockHash,
+						blockNumber: blockHex,
+						from: rawAction['from'],
+						gas: receipt['gasused'],
+						gasPrice: "0x" + Number(rawAction['gas_price']).toString(16),
+						hash: "0x" + receipt['hash'],
+						input: rawAction['input_data'],
+						nonce: "0x" + Number(rawAction['nonce']).toString(16),
+						to: rawAction['to'],
+						transactionIndex: "0x" + Number(receipt['trx_index']).toString(16),
+						value: "0x0"
+					});
+				}
+			}
+		}
+		if (trxs.length > 0) {
+			return {
+				difficulty: "0x0",
+				extraData: NULL_HASH,
+				gasLimit: "0x989680",
+				gasUsed: "0x989680",
+				hash: blockHash,
+				logsBloom: null,
+				miner: ZERO_ADDR,
+				mixHash: NULL_HASH,
+				nonce: null,
+				number: blockHex,
+				parentHash: NULL_HASH,
+				receiptsRoot: NULL_HASH,
+				sha3Uncles: NULL_HASH,
+				size: "0x0",
+				stateRoot: NULL_HASH,
+				timestamp: "0x" + timestamp?.toString(16),
+				totalDifficulty: "0x0",
+				transactions: trxs,
+				transactionsRoot: NULL_HASH,
+				uncles: []
+			};
+		} else {
+			return null;
+		}
+	}
+
+	async function getDeltasByTerm(term: string, value: any) {
+		const termStruct = {};
+		termStruct[term] = value;
+		const results = await fastify.elastic.search({
+			index: `${fastify.manager.chain}-delta-*`,
+			size: 1000,
+			body: {query: {bool: {must: [{term: termStruct}]}}}
+		});
+		return results?.body?.hits?.hits;
+	}
+
+	// LOAD METHODS
+
+	/**
+	 * Returns true if client is actively listening for network connections.
+	 */
 	methods.set('net_listening', () => true);
 
+	/**
+	 * Returns the current "latest" block number.
+	 */
 	methods.set('eth_blockNumber', async () => {
 		try {
-			const info = await fastify.eosjs.rpc.get_info();
-			return '0x' + info.head_block_num.toString(16)
+			const global = await fastify.eosjs.rpc.get_table_rows({
+				code: "eosio",
+				scope: "eosio",
+				table: "global",
+				json: true
+			});
+			const head_block_num = parseInt(global.rows[0].block_num, 10);
+			return '0x' + head_block_num.toString(16);
 		} catch (e) {
 			throw new Error('Request Failed: ' + e.message);
 		}
 	});
 
-	methods.set('net_version', () => opts.chainId);
+	/**
+	 * Returns the current network id.
+	 */
+	methods.set('net_version', () => opts.chainId.toString());
+
+	/**
+	 * Returns the currently configured chain id, a value used in
+	 * replay-protected transaction signing as introduced by EIP-155.
+	 */
 	methods.set('eth_chainId', () => "0x" + opts.chainId.toString(16));
-	methods.set('eth_accounts', () => null);
 
-	// TODO: eth_getTransactionCount
-	methods.set('eth_getTransactionCount', async () => {
-		return 1;
+	/**
+	 * Returns a list of addresses owned by client.
+	 */
+	methods.set('eth_accounts', () => []);
+
+	/**
+	 * Returns the number of transactions sent from an address.
+	 */
+	methods.set('eth_getTransactionCount', async ([address]) => {
+		return await fastify.evm.telos.getNonce(address.toLowerCase());
 	});
 
-	// TODO: eth_getCode
-	methods.set('eth_getCode', async () => {
-		return "0x0000";
+	/**
+	 * Returns the compiled smart contract code,
+	 * if any, at a given address.
+	 */
+	methods.set('eth_getCode', async ([address]) => {
+		try {
+			const account = await fastify.evm.telos.getEthAccount(address.toLowerCase());
+			if (account.code && account.code.length > 0) {
+				return "0x" + Buffer.from(account.code).toString("hex");
+			} else {
+				return "0x0000";
+			}
+		} catch (e) {
+			return "0x0000";
+		}
 	});
 
-	// TODO: eth_getStorageAt
-	methods.set('eth_getStorageAt', async () => {
-		return "0x0000";
+	/**
+	 * Returns the value from a storage position at a given address.
+	 */
+	methods.set('eth_getStorageAt', async ([address, position]) => {
+		return await fastify.evm.telos.getStorageAt(address.toLowerCase(), position);
 	});
 
-	// TODO: eth_estimateGas
-	methods.set('eth_estimateGas', async () => {
-		return 50000000;
-	});
+	/**
+	 * Generates and returns an estimate of how much gas is necessary to
+	 * allow the transaction to complete.
+	 */
+	methods.set('eth_estimateGas', async () => 50000000);
 
+	/**
+	 * Returns the current gas price in wei.
+	 */
 	methods.set('eth_gasPrice', () => "0x1");
 
-	// TODO: eth_getBalance
-	methods.set('eth_getBalance', async () => {
-		return "0x0000";
+	/**
+	 * Returns the balance of the account of given address.
+	 */
+	methods.set('eth_getBalance', async ([address]) => {
+		try {
+			const account = await fastify.evm.telos.getEthAccount(address.toLowerCase());
+			const bal = account.balance as number;
+			return "0x" + bal.toString(16);
+		} catch (e) {
+			return "0x0000";
+		}
 	});
 
-	// TODO: eth_call
-	methods.set('eth_call', async () => {
-		return "0x0000";
+	/**
+	 * Returns the balance in native tokens (human readable format)
+	 * of the account of given address.
+	 */
+	methods.set('eth_getBalanceHuman', async ([address]) => {
+		try {
+			const account = await fastify.evm.telos.getEthAccount(address.toLowerCase());
+			const bal = account.balance as BN;
+			// @ts-ignore
+			const balConverted = bal / decimalsBN;
+			return balConverted.toString(10);
+		} catch (e) {
+			return "0";
+		}
 	});
 
-	// TODO: eth_sendRawTransaction
-	methods.set('eth_sendRawTransaction', async () => {
-		return "0x0000";
+	/**
+	 * Executes a new message call immediately without creating a
+	 * transaction on the block chain.
+	 */
+	methods.set('eth_call', async ([txParams]) => {
+		if (chainIds.includes(opts.chainId) && chainAddr.includes(txParams.to)) {
+			const {params: [users, tokens]} = abiDecoder.decodeMethod(txParams.data);
+			if (tokens.value.length === 1 && tokens.value[0] === zeros) {
+				const balances = await Promise.all(
+					users.value.map((user) => {
+						return methods.get('eth_getBalance')([user, null]);
+					})
+				);
+				return "0x" + abi.rawEncode(balances.map(() => "uint256"), balances).toString("hex");
+			}
+		}
+		let _value = new BN(0);
+		if (txParams.value) {
+			_value = new BN(Buffer.from(txParams.value.slice(2), "hex"));
+		}
+		const obj = {
+			...txParams,
+			value: _value,
+			sender: txParams.from,
+		};
+		const encodedTx = await fastify.evm.createEthTx(obj);
+		const output = await fastify.evm.telos.call({
+			account: opts.signer_account,
+			tx: encodedTx,
+			sender: txParams.from,
+		});
+		return "0x" + output;
 	});
 
-	// TODO: eth_sendTransaction
-	methods.set('eth_sendTransaction', async () => {
-		return "0x0000";
+	/**
+	 * Submits a pre-signed transaction for broadcast to the
+	 * Ethereum network.
+	 */
+	methods.set('eth_sendRawTransaction', async ([signedTx]) => {
+		try {
+			const rawData = await fastify.evm.telos.raw({
+				account: opts.signer_account,
+				tx: signedTx
+			});
+			return '0x' + rawData.eth.transactionHash;
+		} catch (e) {
+			console.log(e);
+			return null;
+		}
 	});
 
-	// TODO: eth_getTransactionReceipt
-	methods.set('eth_getTransactionReceipt', async () => {
-		return "0x0000";
+	/**
+	 * Submits transaction for broadcast to the Ethereum network.
+	 */
+	methods.set('eth_sendTransaction', async ([txParams]) => {
+		const buf = Buffer.from(txParams.value.slice(2), "hex");
+		const encodedTx = await fastify.evm.createEthTx({
+			...txParams,
+			value: new BN(buf),
+			rawSign: true,
+			sender: txParams.from,
+		});
+		try {
+			const rawData = await fastify.evm.telos.raw({
+				account: opts.signer_account,
+				tx: encodedTx
+			});
+			return "0x" + rawData.eth.transactionHash;
+		} catch (e) {
+			console.log(e);
+			return null;
+		}
 	});
 
-	// TODO: eth_getTransactionByHash
-	methods.set('eth_getTransactionByHash', async () => {
-		return "0x0000";
+	/**
+	 * Returns the receipt of a transaction by transaction hash.
+	 */
+	methods.set('eth_getTransactionReceipt', async ([trxHash]) => {
+		if (trxHash) {
+
+			// lookup receipt delta
+			const receiptDelta = await searchDeltasByHash(trxHash);
+			if (!receiptDelta) return null;
+			const receipt = receiptDelta['@evmReceipt'];
+
+			// lookup raw action
+			const rawAction = await searchActionByHash(trxHash);
+			if (!rawAction) return null;
+			const raw = rawAction['@raw'];
+
+			const _blockHash = '0x' + receipt['block_hash'];
+			const _blockNum = numToHex(receipt['block']);
+			const _gas = '0x' + (receipt['gasused'] as number).toString(16);
+			let _contractAddr = null;
+			if (receipt['createdaddr']) {
+				_contractAddr = '0x' + receipt['createdaddr'];
+			}
+
+			return {
+				blockHash: _blockHash,
+				blockNumber: numToHex(receipt['block']),
+				contractAddress: _contractAddr,
+				cumulativeGasUsed: _gas,
+				from: raw['from'],
+				gasUsed: _gas,
+				logsBloom: null,
+				status: numToHex(receipt['status']),
+				to: raw['to'],
+				transactionHash: raw['hash'],
+				transactionIndex: numToHex(receipt['trx_index']),
+				logs: buildLogsObject(
+					receipt['logs'],
+					_blockHash,
+					_blockNum,
+					raw['hash'],
+					numToHex(receipt['trx_index'])
+				),
+				errors: receipt['errors'],
+				output: '0x' + receipt['output']
+			};
+		} else {
+			return null;
+		}
 	});
 
-	// TODO: eth_getBlockByNumber
-	methods.set('eth_getBlockByNumber', async () => {
-		return "0x0000";
+	/**
+	 * Returns information about a transaction for a given hash.
+	 */
+	methods.set('eth_getTransactionByHash', async ([trxHash]) => {
+		// lookup raw action
+		const rawAction = await searchActionByHash(trxHash);
+		if (!rawAction) return null;
+		const raw = rawAction['@raw'];
+
+		// lookup receipt delta
+		const receiptDelta = await searchDeltasByHash(trxHash);
+		if (!receiptDelta) return null;
+		const receipt = receiptDelta['@evmReceipt'];
+
+		const _blockHash = '0x' + receipt['block_hash'];
+		const _blockNum = numToHex(receipt['block']);
+		return {
+			blockHash: _blockHash,
+			blockNumber: _blockNum,
+			from: raw['from'],
+			gas: numToHex(raw.gas_limit),
+			gasPrice: numToHex(raw.gas_price),
+			hash: raw['hash'],
+			input: raw['input_data'],
+			nonce: numToHex(raw['nonce']),
+			// "r": "0x2a378831cf81d99a3f06a18ae1b6ca366817ab4d88a70053c41d7a8f0368e031",
+			// "s": "0x450d831a05b6e418724436c05c155e0a1b7b921015d0fbc2f667aed709ac4fb5",
+			to: raw['to'],
+			transactionIndex: numToHex(receipt['trx_index']),
+			// "v": "0x25",
+			value: numToHex(raw['value'])
+		};
 	});
 
-	// TODO: eth_getBlockByHash
-	methods.set('eth_getBlockByHash', async () => {
-		return "0x0000";
+	/**
+	 * Returns information about a block by number.
+	 */
+	methods.set('eth_getBlockByNumber', async ([block, full]) => {
+		const blockNumber = parseInt(block, 16);
+		const receipts = await getDeltasByTerm("@evmReceipt.block", blockNumber);
+		return await reconstructBlockFromReceipts(receipts, full);
 	});
 
-	// TODO: eth_getBlockTransactionCountByHash
-	methods.set('eth_getBlockTransactionCountByHash', async () => {
-		return "0x0000";
+	/**
+	 * Returns information about a block by hash.
+	 */
+	methods.set('eth_getBlockByHash', async ([hash, full]) => {
+		let _hash = hash.toLowerCase();
+		if (_hash.startsWith("0x")) {
+			_hash = _hash.slice(2);
+		}
+		const receipts = await getDeltasByTerm("@evmReceipt.block_hash", _hash);
+		return await reconstructBlockFromReceipts(receipts, full);
 	});
 
-	// TODO: eth_getBlockTransactionCountByNumber
-	methods.set('eth_getBlockTransactionCountByNumber', async () => {
-		return "0x0000";
+	/**
+	 * Returns the number of transactions in the block with
+	 * the given block hash.
+	 */
+	methods.set('eth_getBlockTransactionCountByHash', async ([hash]) => {
+		let _hash = hash.toLowerCase();
+		if (_hash.startsWith("0x")) {
+			_hash = _hash.slice(2);
+		}
+		const receipts = await getDeltasByTerm("@evmReceipt.block_hash", _hash);
+		const txCount: number = receipts.length;
+		return '0x' + txCount.toString(16);
 	});
 
-	// TODO: eth_getUncleCountByBlockHash
-	methods.set('eth_getUncleCountByBlockHash', async () => {
-		return "0x0000";
+	/**
+	 * Returns the number of transactions in the block with
+	 * the given block number.
+	 */
+	methods.set('eth_getBlockTransactionCountByNumber', async ([block]) => {
+		const blockNumber = parseInt(block, 16);
+		const receipts = await getDeltasByTerm("@evmReceipt.block", blockNumber);
+		const txCount: number = receipts.length;
+		return '0x' + txCount.toString(16);
 	});
 
-	// TODO: eth_getUncleCountByBlockNumber
-	methods.set('eth_getUncleCountByBlockNumber', async () => {
-		return "0x0000";
-	});
+	/**
+	 * Returns the number of uncles in a block from a block
+	 * matching the given block hash.
+	 */
+	methods.set('eth_getUncleCountByBlockHash', () => "0x0");
 
+	/**
+	 * Returns the number of uncles in a block from a block
+	 * matching the given block number.
+	 */
+	methods.set('eth_getUncleCountByBlockNumber', () => "0x0");
 
+	/**
+	 * Returns an array of all logs matching a given filter object.
+	 */
 	methods.set('eth_getLogs', async (params) => {
 		// query preparation
 		let address: string = params.address;
@@ -241,6 +683,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		}
 	});
 
+	// END METHODS
+
 	/**
 	 * Main JSON RPC 2.0 Endpoint
 	 */
@@ -249,11 +693,28 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		if (jsonrpc !== "2.0") {
 			return jsonRcp2Error(reply, "InvalidRequest", id, "Invalid JSON RPC");
 		}
-		hLog(`[${method}] - ${JSON.stringify(params)} (id=${id})`);
 		if (methods.has(method)) {
+			const tRef = process.hrtime.bigint();
 			const func = methods.get(method);
 			try {
 				const result = await func(params);
+				let origin;
+				if (request.headers['origin'] === METAMASK_EXTENSION_ORIGIN) {
+					origin = 'MetaMask';
+				} else {
+					if (request.headers['origin']) {
+						origin = request.headers['origin'];
+					} else {
+						origin = request.headers['user-agent'];
+					}
+				}
+				const _usage = reply.getHeader('x-ratelimit-remaining');
+				const _limit = reply.getHeader('x-ratelimit-limit');
+				const _ip = request.headers['x-real-ip'];
+
+				const duration = ((Number(process.hrtime.bigint()) - Number(tRef)) / 1000).toFixed(3);
+				hLog(`${new Date().toISOString()} - ${duration} μs - ${_ip} (${_usage}/${_limit}) - ${origin} - ${method}`);
+				// console.log(`REQ: ${JSON.stringify(params)} | RESP: ${result}`);
 				reply.send({id, jsonrpc, result});
 			} catch (e) {
 				hLog(e.message);

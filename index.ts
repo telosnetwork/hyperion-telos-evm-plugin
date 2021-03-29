@@ -1,5 +1,6 @@
 import {HyperionPlugin} from "../../hyperion-plugin";
-import {FastifyInstance} from "fastify";
+import fastify, {FastifyInstance} from "fastify";
+import fetch from "node-fetch";
 import autoLoad from 'fastify-autoload';
 import {join} from "path";
 import {Transaction} from '@ethereumjs/tx';
@@ -9,8 +10,12 @@ import {HyperionAction} from "../../../interfaces/hyperion-action";
 
 const BN = require('bn.js');
 const createKeccakHash = require('keccak');
+const {TelosEvmApi} = require('@telosnetwork/telosevm-js');
 
 export interface TelosEvmConfig {
+	signer_account: string;
+	signer_permission: string;
+	signer_key: string;
 	contracts: {
 		main: string;
 	}
@@ -174,12 +179,13 @@ export default class TelosEvm extends HyperionPlugin {
 							gas_limit: tx.gasLimit?.toString(),
 							input_data: '0x' + tx.data?.toString('hex'),
 						};
-						if (data.sender) {
+
+						if (tx.isSigned()) {
+							txBody["from"] = tx.getSenderAddress().toString().toLowerCase();
+						} else {
 							txBody["from"] = '0x' + data.sender.toLowerCase();
 						}
-						if (tx.to) {
-							txBody["to"] = tx.to.toString();
-						}
+
 						if (data.ram_payer) {
 							txBody["ram_payer"] = data.ram_payer;
 						}
@@ -199,6 +205,14 @@ export default class TelosEvm extends HyperionPlugin {
 	}
 
 	addRoutes(server: FastifyInstance): void {
+		server.decorate('evm', new TelosEvmApi({
+			endpoint: server.chain_api,
+			chainId: this.pluginConfig.chainId,
+			ethPrivateKeys: [],
+			fetch: fetch,
+			telosContract: this.pluginConfig.contracts.main,
+			telosPrivateKeys: [this.pluginConfig.signer_key]
+		}));
 		server.register(autoLoad, {
 			dir: join(__dirname, 'routes'),
 			options: this.pluginConfig
