@@ -1,4 +1,4 @@
-# hyperion-telos-evm-plugin
+# Telos EVM RPC plugin for Hyperion API
 
 Installation on working Hyperion Indexer/Api (v3.3+)
 
@@ -12,6 +12,9 @@ Required Config on chain.config.json
   "telos-evm": {
       "enabled": true,
       "chainId": 41,
+      "signer_account": "TELOS_ACCOUNT",
+      "signer_permission": "active",
+      "signer_key": "TELOS_PRIVATE_KEY",
       "contracts": {
         "main": "eosio.evm"
       }
