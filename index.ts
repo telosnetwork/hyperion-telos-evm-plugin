@@ -1,5 +1,5 @@
 import {HyperionPlugin} from "../../hyperion-plugin";
-import fastify, {FastifyInstance} from "fastify";
+import {FastifyInstance} from "fastify";
 import fetch from "node-fetch";
 import autoLoad from 'fastify-autoload';
 import {join} from "path";
@@ -36,9 +36,9 @@ export default class TelosEvm extends HyperionPlugin {
 	pluginConfig: TelosEvmConfig;
 
 	constructor(config: TelosEvmConfig) {
-		super();
-		if (config) {
-			this.pluginConfig = config;
+		super(config);
+		if (this.baseConfig) {
+			this.pluginConfig = this.baseConfig;
 			if (config.contracts?.main) {
 				this.dynamicContracts.push(config.contracts.main);
 			}
@@ -107,8 +107,6 @@ export default class TelosEvm extends HyperionPlugin {
 					ramused: parseInt('0x' + data.ramused),
 					output: data.output
 				};
-
-				console.log(data.trx_index);
 
 				if (data.logs) {
 					delta['@evmReceipt']['logs'] = JSON.parse(data.logs);
@@ -206,7 +204,7 @@ export default class TelosEvm extends HyperionPlugin {
 
 	addRoutes(server: FastifyInstance): void {
 		server.decorate('evm', new TelosEvmApi({
-			endpoint: server.chain_api,
+			endpoint: server["chain_api"],
 			chainId: this.pluginConfig.chainId,
 			ethPrivateKeys: [],
 			fetch: fetch,

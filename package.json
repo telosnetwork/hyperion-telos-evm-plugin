@@ -10,7 +10,10 @@
     "type": "git",
     "url": "git+https://github.com/eosrio/hyperion-telos-evm-plugin.git"
   },
-  "author": "",
+  "author": {
+    "name": "EOS Rio",
+    "url": "https://eosrio.io"
+  },
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/eosrio/hyperion-telos-evm-plugin/issues"

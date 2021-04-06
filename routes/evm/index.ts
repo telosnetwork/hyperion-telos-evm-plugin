@@ -1,8 +1,8 @@
 import {FastifyInstance, FastifyReply, FastifyRequest} from "fastify";
 import {hLog} from "../../../../../helpers/common_functions";
 import {TelosEvmConfig} from "../../index";
-import BN from "bn.js";
 
+const BN = require('bn.js');
 const abiDecoder = require("abi-decoder");
 const abi = require("ethereumjs-abi");
 
@@ -360,7 +360,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	methods.set('eth_getBalanceHuman', async ([address]) => {
 		try {
 			const account = await fastify.evm.telos.getEthAccount(address.toLowerCase());
-			const bal = account.balance as BN;
+			const bal = account.balance as typeof BN;
 			// @ts-ignore
 			const balConverted = bal / decimalsBN;
 			return balConverted.toString(10);
@@ -650,26 +650,29 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			const searchResults = await fastify.elastic.search({
 				index: `${fastify.manager.chain}-delta-*`,
 				size: 1000,
-				body: {query: queryBody}
+				body: {
+					query: queryBody,
+					sort: [{"@evmReceipt.trx_index": {order: "asc"}}]
+				}
 			});
 
 			// processing
 			const results = [];
+			let logCount = 0;
 			for (const hit of searchResults.body.hits.hits) {
 				const doc = hit._source;
 				if (doc['@evmReceipt'] && doc['@evmReceipt']['logs']) {
-					let logCount = 0;
 					for (const log of doc['@evmReceipt']['logs']) {
 						results.push({
 							address: '0x' + log.address,
-							blockHash: doc['@evmReceipt']['block_hash'],
-							blockNumber: doc['@evmReceipt']['block'],
+							blockHash: '0x' + doc['@evmReceipt']['block_hash'],
+							blockNumber: numToHex(doc['@evmReceipt']['block']),
 							data: '0x' + log.data,
-							logIndex: parseInt(doc['@evmReceipt']['trx_index'], 10) + logCount,
+							logIndex: numToHex(logCount),
 							removed: false,
 							topics: log.topics.map(t => '0x' + t),
 							transactionHash: doc['@evmReceipt']['hash'],
-							transactionIndex: doc['@evmReceipt']['trx_index']
+							transactionIndex: numToHex(doc['@evmReceipt']['trx_index'])
 						});
 						logCount++;
 					}
