@@ -266,7 +266,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	}
 
 	async function toBlockNumber(blockParam: string) {
-		console.log("toBlockNumber caleld with " + blockParam);
 		if (blockParam == "latest" || blockParam == "pending")
 			return await getCurrentBlockNumber();
 
@@ -347,17 +346,17 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	 */
 	methods.set('eth_estimateGas', async ([txParams, block]) => {
 		const encodedTx = await fastify.evm.createEthTx({
-		...txParams,
-		sender: txParams.from,
-		gasPrice: 10000000000000000,
-		gasLimit: 10000000000000000
+			...txParams,
+			sender: txParams.from,
+			gasPrice: 10000000000000000,
+			gasLimit: 10000000000000000,
 		});
 
 		const gas = await fastify.evm.telos.estimateGas({
-		account: opts.signer_account,
-		ram_payer: fastify.evm.telos.telosContract,
-		tx: encodedTx,
-		sender: txParams.from,
+			account: opts.signer_account,
+			ram_payer: fastify.evm.telos.telosContract,
+			tx: encodedTx,
+			sender: txParams.from,
 		});
 
 		return `0x${Math.ceil((parseInt(gas, 16) * GAS_OVER_ESTIMATE_MULTIPLIER)).toString(16)}`;
