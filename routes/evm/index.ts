@@ -84,6 +84,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	const METAMASK_EXTENSION_ORIGIN = 'chrome-extension://nkbihfbeogaeaoehlefnkodbefgpgknn';
 	const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
 	const NULL_HASH = '0x0000000000000000000000000000000000000000000000000000000000000000';
+	const GAS_OVER_ESTIMATE_MULTIPLIER = 1.25;
 
 	// AUX FUNCTIONS
 
@@ -218,32 +219,28 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				}
 			}
 		}
-		if (trxs.length > 0) {
-			return {
-				difficulty: "0x0",
-				extraData: NULL_HASH,
-				gasLimit: "0x989680",
-				gasUsed: "0x989680",
-				hash: blockHash,
-				logsBloom: null,
-				miner: ZERO_ADDR,
-				mixHash: NULL_HASH,
-				nonce: null,
-				number: blockHex,
-				parentHash: NULL_HASH,
-				receiptsRoot: NULL_HASH,
-				sha3Uncles: NULL_HASH,
-				size: "0x0",
-				stateRoot: NULL_HASH,
-				timestamp: "0x" + timestamp?.toString(16),
-				totalDifficulty: "0x0",
-				transactions: trxs,
-				transactionsRoot: NULL_HASH,
-				uncles: []
-			};
-		} else {
-			return null;
-		}
+		return {
+			difficulty: "0x0",
+			extraData: NULL_HASH,
+			gasLimit: "0x989680",
+			gasUsed: "0x989680",
+			hash: blockHash,
+			logsBloom: null,
+			miner: ZERO_ADDR,
+			mixHash: NULL_HASH,
+			nonce: null,
+			number: blockHex,
+			parentHash: NULL_HASH,
+			receiptsRoot: NULL_HASH,
+			sha3Uncles: NULL_HASH,
+			size: "0x0",
+			stateRoot: NULL_HASH,
+			timestamp: "0x" + timestamp?.toString(16),
+			totalDifficulty: "0x0",
+			transactions: trxs,
+			transactionsRoot: NULL_HASH,
+			uncles: []
+		};
 	}
 
 	async function getDeltasByTerm(term: string, value: any) {
@@ -255,6 +252,28 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			body: {query: {bool: {must: [{term: termStruct}]}}}
 		});
 		return results?.body?.hits?.hits;
+	}
+
+	async function getCurrentBlockNumber() {
+		const global = await fastify.eosjs.rpc.get_table_rows({
+			code: "eosio",
+			scope: "eosio",
+			table: "global",
+			json: true
+		});
+		const head_block_num = parseInt(global.rows[0].block_num, 10);
+		return '0x' + head_block_num.toString(16);
+	}
+
+	async function toBlockNumber(blockParam: string) {
+		console.log("toBlockNumber caleld with " + blockParam);
+		if (blockParam == "latest" || blockParam == "pending")
+			return await getCurrentBlockNumber();
+
+		if (blockParam == "earliest")
+			return "0x0";
+
+		return blockParam;
 	}
 
 	// LOAD METHODS
@@ -269,14 +288,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	 */
 	methods.set('eth_blockNumber', async () => {
 		try {
-			const global = await fastify.eosjs.rpc.get_table_rows({
-				code: "eosio",
-				scope: "eosio",
-				table: "global",
-				json: true
-			});
-			const head_block_num = parseInt(global.rows[0].block_num, 10);
-			return '0x' + head_block_num.toString(16);
+			return await getCurrentBlockNumber();
 		} catch (e) {
 			throw new Error('Request Failed: ' + e.message);
 		}
@@ -333,12 +345,32 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	 * Generates and returns an estimate of how much gas is necessary to
 	 * allow the transaction to complete.
 	 */
-	methods.set('eth_estimateGas', async () => 50000000);
+	methods.set('eth_estimateGas', async ([txParams, block]) => {
+		const encodedTx = await fastify.evm.createEthTx({
+		...txParams,
+		sender: txParams.from,
+		gasPrice: 10000000000000000,
+		gasLimit: 10000000000000000
+		});
+
+		const gas = await fastify.evm.telos.estimateGas({
+		account: opts.signer_account,
+		ram_payer: fastify.evm.telos.telosContract,
+		tx: encodedTx,
+		sender: txParams.from,
+		});
+
+		return `0x${Math.ceil((parseInt(gas, 16) * GAS_OVER_ESTIMATE_MULTIPLIER)).toString(16)}`;
+	});
 
 	/**
 	 * Returns the current gas price in wei.
 	 */
-	methods.set('eth_gasPrice', () => "0x1");
+	methods.set('eth_gasPrice', async () => {
+		let price = await fastify.evm.telos.getGasPrice();
+		let priceInt = parseInt(price, 10);
+		return isNaN(priceInt) ? null : "0x" + priceInt.toString(16);
+	});
 
 	/**
 	 * Returns the balance of the account of given address.
@@ -434,6 +466,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		try {
 			const rawData = await fastify.evm.telos.raw({
 				account: opts.signer_account,
+				ram_payer: fastify.evm.telos.telosContract,
 				tx: encodedTx
 			});
 			return "0x" + rawData.eth.transactionHash;
@@ -532,7 +565,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	 * Returns information about a block by number.
 	 */
 	methods.set('eth_getBlockByNumber', async ([block, full]) => {
-		const blockNumber = parseInt(block, 16);
+		const blockNumber = parseInt(await toBlockNumber(block), 16);
 		const receipts = await getDeltasByTerm("@evmReceipt.block", blockNumber);
 		return await reconstructBlockFromReceipts(receipts, full);
 	});
@@ -720,7 +753,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				// console.log(`REQ: ${JSON.stringify(params)} | RESP: ${result}`);
 				reply.send({id, jsonrpc, result});
 			} catch (e) {
-				hLog(e.message);
+				hLog(e.message,method,JSON.stringify(params,null,2));
+				console.log(JSON.stringify(e,null,2));
 				return jsonRcp2Error(reply, "InternalError", id, e.message);
 			}
 		} else {
