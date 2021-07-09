@@ -1,7 +1,7 @@
 {
   "name": "telos-evm",
   "version": "1.0.0",
-  "description": "",
+  "description": "Hyperion plugin for the Telos EVM",
   "main": "index.js",
   "scripts": {
     "build": "tsc"

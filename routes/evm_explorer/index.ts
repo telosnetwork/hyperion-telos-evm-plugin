@@ -2,6 +2,26 @@ import {FastifyInstance, FastifyReply, FastifyRequest} from "fastify";
 import {TelosEvmConfig} from "../../index";
 
 export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
+
+	fastify.post('/get_transactions', async (request: FastifyRequest, reply: FastifyReply) => {
+		const txHashes = (request.body as any).tx_hashes
+		const rawResults = await fastify.elastic.search({
+			index: `${fastify.manager.chain}-action-*`,
+			body: {
+				size: 1000,
+				query: {
+					bool: {
+						must: [
+							{terms: {"@raw.hash": txHashes}}
+						]
+					}
+				}
+			}
+		});
+		const transactions = rawResults.body?.hits?.hits.map(tx => tx._source['@raw']);
+		reply.send(transactions);
+	});
+
 	fastify.get('/get_transactions', async (request: FastifyRequest, reply: FastifyReply) => {
 
 		let address = request.query["address"];

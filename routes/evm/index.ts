@@ -15,7 +15,7 @@ function numToHex(input: number | string) {
 }
 
 function jsonRcp2Error(reply: FastifyReply, type: string, requestId: string, message: string, code?: number) {
-	let errorCode = code;
+	let errorCode;
 	switch (type) {
 		case "InvalidRequest": {
 			reply.statusCode = 400;
@@ -513,6 +513,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		return {
 			blockHash: _blockHash,
 			blockNumber: _blockNum,
+			block_num: rawAction['block_num'],
 			from: raw['from'],
 			gas: numToHex(raw.gas_limit),
 			gasPrice: numToHex(raw.gas_price),
@@ -521,6 +522,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			nonce: numToHex(raw['nonce']),
 			// "r": "0x2a378831cf81d99a3f06a18ae1b6ca366817ab4d88a70053c41d7a8f0368e031",
 			// "s": "0x450d831a05b6e418724436c05c155e0a1b7b921015d0fbc2f667aed709ac4fb5",
+			timestamp: rawAction['@timestamp'],
 			to: raw['to'],
 			transactionIndex: numToHex(receipt['trx_index']),
 			// "v": "0x25",
