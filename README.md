@@ -7,7 +7,7 @@ Hyperion History v3.3.5+ required
 # install from this repository
 ./hpm install -r https://github.com/eosrio/hyperion-telos-evm-plugin telos-evm
 # enable the plugin globally
-./hpm enable explorer
+./hpm enable telos-evm
 ```
 
 Required Config on chain.config.json
