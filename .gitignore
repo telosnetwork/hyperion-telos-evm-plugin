@@ -102,3 +102,10 @@ dist
 
 # TernJS port file
 .tern-port
+
+bloom/**/*.js
+bloom/**/*.js.map
+index.js
+index.js.map
+routes/**/*.js
+routes/**/*.js.map
