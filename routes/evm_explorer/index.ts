@@ -1,28 +1,13 @@
 import {FastifyInstance, FastifyReply, FastifyRequest} from "fastify";
 import {TelosEvmConfig} from "../../index";
 
+const schema: any = {
+	summary: 'DEPRECATED: Used by explorer but to be replaced by /v2/evm/get_transactions',
+	tags: ['evm'],
+};
+
 export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
-
-	fastify.post('/get_transactions', async (request: FastifyRequest, reply: FastifyReply) => {
-		const txHashes = (request.body as any).tx_hashes
-		const rawResults = await fastify.elastic.search({
-			index: `${fastify.manager.chain}-action-*`,
-			body: {
-				size: 1000,
-				query: {
-					bool: {
-						must: [
-							{terms: {"@raw.hash": txHashes}}
-						]
-					}
-				}
-			}
-		});
-		const transactions = rawResults.body?.hits?.hits.map(tx => tx._source['@raw']);
-		reply.send(transactions);
-	});
-
-	fastify.get('/get_transactions', async (request: FastifyRequest, reply: FastifyReply) => {
+	fastify.get('/evm_explorer/get_transactions', { schema }, async (request: FastifyRequest, reply: FastifyReply) => {
 
 		let address = request.query["address"];
 		if (address) {
@@ -87,38 +72,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				}
 			}
 
-			const receiptsResults = await fastify.elastic.search({
-				index: `${fastify.manager.chain}-delta-*`,
-				body: {
-					size: 1000,
-					query: {
-						bool: {
-							must: [
-								{terms: {"@evmReceipt.hash": txHashes}}
-							]
-						}
-					}
-				}
-			});
-
-			if (receiptsResults.body && receiptsResults.body?.hits?.hits.length > 0) {
-
-				const receiptMap = new Map();
-
-				for (const hit of receiptsResults.body?.hits?.hits) {
-					const result = hit._source;
-					receiptMap.set('0x' + result['@evmReceipt']['hash'], result['@evmReceipt']);
-				}
-
-				for (const transaction of _transactions) {
-					if (receiptMap.has(transaction.hash)) {
-						transaction['receipt'] = receiptMap.get(transaction.hash);
-						delete transaction['receipt']['hash'];
-						delete transaction['receipt']['trxid'];
-					}
-				}
-			}
-
 		}
 
 		reply.send({
@@ -132,4 +85,3 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		});
 	});
 }
-export const autoPrefix = '/evm_explorer';

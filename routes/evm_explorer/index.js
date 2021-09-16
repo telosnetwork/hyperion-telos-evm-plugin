@@ -1,28 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.autoPrefix = void 0;
+const schema = {
+    summary: 'DEPRECATED: Used by explorer but to be replaced by /v2/evm/get_transactions',
+    tags: ['evm'],
+};
 async function default_1(fastify, opts) {
-    fastify.post('/get_transactions', async (request, reply) => {
-        var _a, _b;
-        const txHashes = request.body.tx_hashes;
-        const rawResults = await fastify.elastic.search({
-            index: `${fastify.manager.chain}-action-*`,
-            body: {
-                size: 1000,
-                query: {
-                    bool: {
-                        must: [
-                            { terms: { "@raw.hash": txHashes } }
-                        ]
-                    }
-                }
-            }
-        });
-        const transactions = (_b = (_a = rawResults.body) === null || _a === void 0 ? void 0 : _a.hits) === null || _b === void 0 ? void 0 : _b.hits.map(tx => tx._source['@raw']);
-        reply.send(transactions);
-    });
-    fastify.get('/get_transactions', async (request, reply) => {
-        var _a, _b, _c, _d, _e, _f, _g, _h;
+    fastify.get('/evm_explorer/get_transactions', { schema }, async (request, reply) => {
         let address = request.query["address"];
         if (address) {
             if (!address.startsWith('0x')) {
@@ -55,9 +38,9 @@ async function default_1(fastify, opts) {
                 }
             }
         });
-        if (searchResults.body && ((_b = (_a = searchResults.body) === null || _a === void 0 ? void 0 : _a.hits) === null || _b === void 0 ? void 0 : _b.hits.length) > 0) {
+        if (searchResults.body && searchResults.body?.hits?.hits.length > 0) {
             totalCount = searchResults.body.hits.total.value;
-            for (const hit of (_d = (_c = searchResults.body) === null || _c === void 0 ? void 0 : _c.hits) === null || _d === void 0 ? void 0 : _d.hits) {
+            for (const hit of searchResults.body?.hits?.hits) {
                 const result = hit._source;
                 if (result['@raw']) {
                     const txHash = result['@raw']['hash'];
@@ -76,33 +59,6 @@ async function default_1(fastify, opts) {
                     });
                 }
             }
-            const receiptsResults = await fastify.elastic.search({
-                index: `${fastify.manager.chain}-delta-*`,
-                body: {
-                    size: 1000,
-                    query: {
-                        bool: {
-                            must: [
-                                { terms: { "@evmReceipt.hash": txHashes } }
-                            ]
-                        }
-                    }
-                }
-            });
-            if (receiptsResults.body && ((_f = (_e = receiptsResults.body) === null || _e === void 0 ? void 0 : _e.hits) === null || _f === void 0 ? void 0 : _f.hits.length) > 0) {
-                const receiptMap = new Map();
-                for (const hit of (_h = (_g = receiptsResults.body) === null || _g === void 0 ? void 0 : _g.hits) === null || _h === void 0 ? void 0 : _h.hits) {
-                    const result = hit._source;
-                    receiptMap.set('0x' + result['@evmReceipt']['hash'], result['@evmReceipt']);
-                }
-                for (const transaction of _transactions) {
-                    if (receiptMap.has(transaction.hash)) {
-                        transaction['receipt'] = receiptMap.get(transaction.hash);
-                        delete transaction['receipt']['hash'];
-                        delete transaction['receipt']['trxid'];
-                    }
-                }
-            }
         }
         reply.send({
             query_time_ms: Date.now() - tref,
@@ -116,5 +72,4 @@ async function default_1(fastify, opts) {
     });
 }
 exports.default = default_1;
-exports.autoPrefix = '/evm_explorer';
 //# sourceMappingURL=index.js.map

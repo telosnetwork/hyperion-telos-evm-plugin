@@ -8,9 +8,8 @@ npm run plugin-manager install telos-evm
 
 Required Config on chain.config.json
 ```json
-{
-  "plugins": {
-    "telos-evm": {
+"plugins": {
+  "telos-evm": {
       "enabled": true,
       "chainId": 41,
       "signer_account": "TELOS_ACCOUNT",
@@ -19,7 +18,6 @@ Required Config on chain.config.json
       "contracts": {
         "main": "eosio.evm"
       }
-    }
   }
 }
 ```

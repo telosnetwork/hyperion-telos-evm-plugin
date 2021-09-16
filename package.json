@@ -1,10 +1,13 @@
 {
   "name": "telos-evm",
   "version": "1.0.0",
-  "description": "Hyperion plugin for the Telos EVM",
+  "description": "",
   "main": "index.js",
   "scripts": {
     "build": "tsc"
+  },
+  "engines": {
+    "node": "^16"
   },
   "repository": {
     "type": "git",
@@ -20,15 +23,17 @@
   },
   "homepage": "https://github.com/eosrio/hyperion-telos-evm-plugin#readme",
   "dependencies": {
-    "@ethereumjs/common": "2.2.0",
-    "@ethereumjs/tx": "3.1.1",
-    "@telosnetwork/telosevm-js": "0.1.0",
+    "@ethereumjs/common": "^2.4.0",
+    "@ethereumjs/tx": "^3.3.0",
+    "@telosnetwork/telosevm-js": "0.1.1-19",
     "abi-decoder": "^2.4.0",
     "bn.js": "^5.2.0",
     "ethereumjs-abi": "^0.6.8",
-    "keccak": "^3.0.1"
+    "ethereumjs-util": "^7.0.10",
+    "keccak": "^3.0.2"
   },
   "devDependencies": {
-    "typescript": "^4.3.5"
+    "@types/node": "^16.9.1",
+    "typescript": "4.4.3"
   }
 }
