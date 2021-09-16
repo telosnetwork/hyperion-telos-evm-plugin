@@ -1,16 +1,23 @@
 # Telos EVM RPC plugin for Hyperion API
 
-Installation on working Hyperion Indexer/Api (v3.3+)
+Install plugin (hpm - hyperion plugin manager)
 
+Hyperion History v3.3.5+ required
 ```bash
-npm run plugin-manager install telos-evm
+# install from this repository
+./hpm install -r https://github.com/eosrio/hyperion-telos-evm-plugin telos-evm
+# enable the plugin globally
+./hpm enable explorer
 ```
 
 Required Config on chain.config.json
+
 ```json
-"plugins": {
-  "telos-evm": {
+{
+  "plugins": {
+    "telos-evm": {
       "enabled": true,
+      "debug": false,
       "chainId": 41,
       "signer_account": "TELOS_ACCOUNT",
       "signer_permission": "active",
@@ -18,6 +25,7 @@ Required Config on chain.config.json
       "contracts": {
         "main": "eosio.evm"
       }
+    }
   }
 }
 ```
