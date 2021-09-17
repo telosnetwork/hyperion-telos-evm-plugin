@@ -5,7 +5,7 @@ Install plugin (hpm - hyperion plugin manager)
 Hyperion History v3.3.5+ required
 ```bash
 # install from this repository
-./hpm install -r https://github.com/eosrio/hyperion-telos-evm-plugin telos-evm
+./hpm install -r https://github.com/telosnetwork/hyperion-telos-evm-plugin telos-evm
 # enable the plugin globally
 ./hpm enable telos-evm
 ```
