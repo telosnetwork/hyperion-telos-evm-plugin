@@ -205,10 +205,12 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	// AUX FUNCTIONS
 
 	async function getInfo() {
+		console.log('getInfo without cache')
 		return await fastify.eosjs.rpc.get_info();
 	}
 
 	async function getBlock(numOrId: string | number) {
+		console.log('getBlock without cache')
 		return await fastify.eosjs.rpc.get_block(numOrId);
 	}
 
@@ -557,7 +559,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			ram_payer: fastify.evm.telos.telosContract,
 			tx: encodedTx,
 			sender: txParams.from,
-		}, this.fastify.cachingApi, await makeTrxVars());
+		}, fastify.cachingApi, await makeTrxVars());
 
 		if (gas.startsWith(REVERT_FUNCTION_SELECTOR)) {
 			let err = new TransactionError('Transaction reverted');
@@ -666,7 +668,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				account: opts.signer_account,
 				tx: encodedTx,
 				sender: txParams.from,
-			}, this.fastify.cachingApi, await makeTrxVars());
+			}, fastify.cachingApi, await makeTrxVars());
 			output = output.replace(/^0x/, '');
 			return "0x" + output;
 		} catch (e) {
@@ -700,7 +702,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				account: opts.signer_account,
 				tx: signedTx,
 				ram_payer: fastify.evm.telos.telosContract,
-			}, this.fastify.cachingApi, await makeTrxVars());
+			}, fastify.cachingApi, await makeTrxVars());
 
 			let consoleOutput = rawResponse.telos.processed.action_traces[0].console;
 
