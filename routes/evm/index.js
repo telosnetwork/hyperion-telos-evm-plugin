@@ -5,6 +5,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const bloom_1 = __importDefault(require("../../bloom"));
 const debugLogging_1 = __importDefault(require("../../debugLogging"));
+const moment_1 = __importDefault(require("moment"));
+const eosjs_1 = require("eosjs");
+const eosjs_jssig_1 = require("eosjs/dist/eosjs-jssig");
+const eosjs_ecc_1 = require("eosjs-ecc");
 const BN = require('bn.js');
 const abiDecoder = require("abi-decoder");
 const abi = require("ethereumjs-abi");
@@ -144,7 +148,58 @@ async function default_1(fastify, opts) {
     const NULL_HASH = '0x0000000000000000000000000000000000000000000000000000000000000000';
     const GAS_OVER_ESTIMATE_MULTIPLIER = 1.25;
     let Logger = new debugLogging_1.default(opts.debug);
+    // Setup Api instance just for signing, to optimize eosjs so it doesn't call get_required_keys every time
+    // TODO: Maybe cache the ABI here if eosjs doesn't already
+    //   similar to https://raw.githubusercontent.com/JakubDziworski/Eos-Offline-Transaction-Example/master/src/tx-builder.ts
+    const privateKeys = [opts.signer_key];
+    const accountPublicKey = eosjs_ecc_1.PrivateKey.fromString(opts.signer_key).toPublic().toString();
+    const signatureProvider = new eosjs_jssig_1.JsSignatureProvider(privateKeys);
+    const authorityProvider = {
+        getRequiredKeys: (args) => {
+            return Promise.resolve([accountPublicKey]);
+        },
+    };
+    const getInfoResponse = await getInfo();
+    fastify.decorate('evmSigner', new eosjs_1.Api({
+        rpc: fastify.eosjs.rpc,
+        // abiProvider,
+        signatureProvider,
+        authorityProvider,
+        chainId: getInfoResponse.chain_id,
+        textDecoder: new TextDecoder(),
+        textEncoder: new TextEncoder(),
+    }));
     // AUX FUNCTIONS
+    async function getInfo() {
+        return await fastify.eosjs.rpc.get_info();
+    }
+    async function getBlock(numOrId) {
+        return await fastify.eosjs.rpc.get_block(numOrId);
+    }
+    async function sendAction(action) {
+        const actions = [action];
+        // TODO: parameterize this
+        const expiration = ((0, moment_1.default)())
+            .add(45, 'seconds')
+            .toDate()
+            .toString();
+        const getInfoResponse = await getInfo();
+        const getBlockResponse = await getBlock(getInfoResponse.last_irreversible_block_num);
+        const transaction = {
+            actions,
+            expiration,
+            ref_block_num: getBlockResponse.block_num,
+            ref_block_prefix: getBlockResponse.ref_block_prefix,
+        };
+        const transactResult = await fastify.evmSigner.transact(transaction, { broadcast: true, sign: true });
+        /*
+        const result = {
+              signatures: transactResult.signatures,
+              serializedTransaction: Buffer.from(transactResult.serializedTransaction).toString('hex')
+        }
+        return result
+         */
+    }
     function toChecksumAddress(address) {
         if (!address)
             return address;

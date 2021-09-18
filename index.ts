@@ -80,119 +80,12 @@ export default class TelosEvm extends HyperionPlugin {
                     this.hardfork
                 );
                 this.loadActionHandlers();
-                //this.loadDeltaHandlers();
             }
         }
     }
 
-    loadDeltaHandlers() {
-        /*
-        // eosio.evm::receipt
-        this.deltaHandlers.push({
-            table: 'receipt',
-            contract: 'eosio.evm',
-            mappings: {
-                delta: {
-                    "@evmReceipt": {
-                        "properties": {
-                            "index": {"type": "long"},
-                            "hash": {"type": "keyword"},
-                            "trx_index": {"type": "long"},
-                            "block": {"type": "long"},
-                            "block_hash": {"type": "keyword"},
-                            "trxid": {"type": "keyword"},
-                            "status": {"type": "byte"},
-                            "epoch": {"type": "long"},
-                            "createdaddr": {"type": "keyword"},
-                            "gasused": {"type": "long"},
-                            "ramused": {"type": "long"},
-                            "logs": {
-                                "properties": {
-                                    "address": {"type": "keyword"},
-                                    "data": {"enabled": false},
-                                    "topics": {"type": "keyword"}
-                                }
-                            },
-                            "logsBloom": {"type": "keyword"},
-                            "output": {"enabled": false},
-                            "errors": {"enabled": false},
-                            "itxs": {
-                                "properties": {
-                                    "callType": { "type": "text" },
-                                    "from": { "type": "text" },
-                                    "gas": { "type": "text" },
-                                    "input": { "type": "text" },
-                                    "to": { "type": "text" },
-                                    "value": { "type": "text" },
-                                    "gasUsed": { "type": "text" },
-                                    "output": { "type": "text" },
-                                    "subtraces": { "type": "long" },
-                                    "traceAddress": {"type": "long"},
-                                    "type": { "type": "text" },
-                                    "depth": { "type": "text" },
-                                    "extra": {"type" : "text"}
-                                }
-                            },
-                        }
-                    }
-                }
-            },
-            handler: async (delta: HyperionDelta) => {
-                const data = delta.data;
-
-                const blockHex = (data.block as number).toString(16);
-                const blockHash = createKeccakHash('keccak256').update(blockHex).digest('hex');
-
-                delta['@evmReceipt'] = {
-                    index: data.index,
-                    hash: data.hash.toLowerCase(),
-                    trx_index: data.trx_index,
-                    block: data.block,
-                    block_hash: blockHash,
-                    trxid: data.trxid.toLowerCase(),
-                    status: data.status,
-                    epoch: data.epoch,
-                    createdaddr: data.createdaddr.toLowerCase(),
-                    gasused: parseInt('0x' + data.gasused),
-                    ramused: parseInt('0x' + data.ramused),
-                    output: data.output,
-                    itxs: data.itxs	|| []
-                };
-
-                if (data.logs) {
-                    delta['@evmReceipt']['logs'] = JSON.parse(data.logs);
-                    if (delta['@evmReceipt']['logs'].length === 0) {
-                        delete delta['@evmReceipt']['logs'];
-                    } else {
-                        console.log('------- LOGS -----------');
-                        console.log(delta['@evmReceipt']['logs']);
-                        const bloom = new Bloom();
-                        for (const topic of delta['@evmReceipt']['logs'][0]['topics'])
-                            bloom.add(Buffer.from(topic, 'hex'));
-                        bloom.add(Buffer.from(delta['@evmReceipt']['logs'][0]['address'], 'hex'));
-                        delta['@evmReceipt']['logsBloom'] = bloom.bitvector.toString('hex');
-                    }
-                }
-
-                if (data.errors) {
-                    delta['@evmReceipt']['errors'] = JSON.parse(data.errors);
-                    if (delta['@evmReceipt']['errors'].length === 0) {
-                        delete delta['@evmReceipt']['errors'];
-                    } else {
-                        console.log('------- ERRORS -----------');
-                        console.log(delta['@evmReceipt']['errors'])
-                    }
-                }
-
-                delete delta.data;
-            }
-        });
-        */
-    }
-
     loadActionHandlers() {
 
-        // eosio.evm::receipt
         this.actionHandlers.push({
             action: 'raw',
             contract: this.pluginConfig.contracts.main,

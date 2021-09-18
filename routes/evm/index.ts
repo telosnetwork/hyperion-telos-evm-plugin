@@ -5,7 +5,7 @@ import DebugLogger from "../../debugLogging";
 import { AuthorityProvider, AuthorityProviderArgs, BinaryAbi } from 'eosjs/dist/eosjs-api-interfaces';
 import { PushTransactionArgs } from 'eosjs/dist/eosjs-rpc-interfaces'
 import moment from "moment";
-import { Api, JsonRpc } from 'eosjs'
+import { Api } from 'eosjs'
 import { JsSignatureProvider } from 'eosjs/dist/eosjs-jssig'
 import { PrivateKey } from 'eosjs-ecc'
 

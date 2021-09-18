@@ -10,6 +10,7 @@ const path_1 = require("path");
 const tx_1 = require("@ethereumjs/tx");
 const common_1 = __importDefault(require("@ethereumjs/common"));
 const bloom_1 = __importDefault(require("./bloom"));
+const common_functions_1 = require("../../../helpers/common_functions");
 const BN = require('bn.js');
 const createKeccakHash = require('keccak');
 const { TelosEvmApi } = require('@telosnetwork/telosevm-js');
@@ -36,6 +37,9 @@ function toChecksumAddress(address) {
 class TelosEvm extends hyperion_plugin_1.HyperionPlugin {
     constructor(config) {
         super(config);
+        this.internalPluginName = 'telos-evm';
+        this.apiPlugin = true;
+        this.indexerPlugin = true;
         this.hasApiRoutes = true;
         this.debug = false;
         this.actionHandlers = [];
@@ -53,120 +57,13 @@ class TelosEvm extends hyperion_plugin_1.HyperionPlugin {
             if (config.chainId) {
                 this.common = common_1.default.forCustomChain(this.baseChain, { chainId: config.chainId }, this.hardfork);
                 this.loadActionHandlers();
-                //this.loadDeltaHandlers();
             }
         }
     }
-    loadDeltaHandlers() {
-        /*
-        // eosio.evm::receipt
-        this.deltaHandlers.push({
-            table: 'receipt',
-            contract: 'eosio.evm',
-            mappings: {
-                delta: {
-                    "@evmReceipt": {
-                        "properties": {
-                            "index": {"type": "long"},
-                            "hash": {"type": "keyword"},
-                            "trx_index": {"type": "long"},
-                            "block": {"type": "long"},
-                            "block_hash": {"type": "keyword"},
-                            "trxid": {"type": "keyword"},
-                            "status": {"type": "byte"},
-                            "epoch": {"type": "long"},
-                            "createdaddr": {"type": "keyword"},
-                            "gasused": {"type": "long"},
-                            "ramused": {"type": "long"},
-                            "logs": {
-                                "properties": {
-                                    "address": {"type": "keyword"},
-                                    "data": {"enabled": false},
-                                    "topics": {"type": "keyword"}
-                                }
-                            },
-                            "logsBloom": {"type": "keyword"},
-                            "output": {"enabled": false},
-                            "errors": {"enabled": false},
-                            "itxs": {
-                                "properties": {
-                                    "callType": { "type": "text" },
-                                    "from": { "type": "text" },
-                                    "gas": { "type": "text" },
-                                    "input": { "type": "text" },
-                                    "to": { "type": "text" },
-                                    "value": { "type": "text" },
-                                    "gasUsed": { "type": "text" },
-                                    "output": { "type": "text" },
-                                    "subtraces": { "type": "long" },
-                                    "traceAddress": {"type": "long"},
-                                    "type": { "type": "text" },
-                                    "depth": { "type": "text" },
-                                    "extra": {"type" : "text"}
-                                }
-                            },
-                        }
-                    }
-                }
-            },
-            handler: async (delta: HyperionDelta) => {
-                const data = delta.data;
-
-                const blockHex = (data.block as number).toString(16);
-                const blockHash = createKeccakHash('keccak256').update(blockHex).digest('hex');
-
-                delta['@evmReceipt'] = {
-                    index: data.index,
-                    hash: data.hash.toLowerCase(),
-                    trx_index: data.trx_index,
-                    block: data.block,
-                    block_hash: blockHash,
-                    trxid: data.trxid.toLowerCase(),
-                    status: data.status,
-                    epoch: data.epoch,
-                    createdaddr: data.createdaddr.toLowerCase(),
-                    gasused: parseInt('0x' + data.gasused),
-                    ramused: parseInt('0x' + data.ramused),
-                    output: data.output,
-                    itxs: data.itxs	|| []
-                };
-
-                if (data.logs) {
-                    delta['@evmReceipt']['logs'] = JSON.parse(data.logs);
-                    if (delta['@evmReceipt']['logs'].length === 0) {
-                        delete delta['@evmReceipt']['logs'];
-                    } else {
-                        console.log('------- LOGS -----------');
-                        console.log(delta['@evmReceipt']['logs']);
-                        const bloom = new Bloom();
-                        for (const topic of delta['@evmReceipt']['logs'][0]['topics'])
-                            bloom.add(Buffer.from(topic, 'hex'));
-                        bloom.add(Buffer.from(delta['@evmReceipt']['logs'][0]['address'], 'hex'));
-                        delta['@evmReceipt']['logsBloom'] = bloom.bitvector.toString('hex');
-                    }
-                }
-
-                if (data.errors) {
-                    delta['@evmReceipt']['errors'] = JSON.parse(data.errors);
-                    if (delta['@evmReceipt']['errors'].length === 0) {
-                        delete delta['@evmReceipt']['errors'];
-                    } else {
-                        console.log('------- ERRORS -----------');
-                        console.log(delta['@evmReceipt']['errors'])
-                    }
-                }
-
-                delete delta.data;
-            }
-        });
-        */
-    }
     loadActionHandlers() {
-        // eosio.evm::receipt
         this.actionHandlers.push({
             action: 'raw',
-            // TODO: this contract account should come from the config?
-            contract: 'eosio.evm',
+            contract: this.pluginConfig.contracts.main,
             mappings: {
                 action: {
                     "@raw": {
@@ -230,9 +127,20 @@ class TelosEvm extends hyperion_plugin_1.HyperionPlugin {
                 const data = action['act']['data'];
                 this.counter++;
                 let consoleLog = action.console;
+                if (!consoleLog) {
+                    (0, common_functions_1.hLog)(`WARNING: Action console not found!`);
+                    return;
+                }
                 let receiptLog = consoleLog.slice(consoleLog.indexOf(RECEIPT_LOG_START) + RECEIPT_LOG_START.length, consoleLog.indexOf(RECEIPT_LOG_END));
-                let receipt = JSON.parse(receiptLog);
-                this.logDebug(`Receipt: ${JSON.stringify(receipt)}`);
+                let receipt;
+                try {
+                    receipt = JSON.parse(receiptLog);
+                    this.logDebug(`Receipt: ${JSON.stringify(receipt)}`);
+                }
+                catch (e) {
+                    (0, common_functions_1.hLog)('WARNING: Failed to parse receiptLog');
+                    return;
+                }
                 // decode internal EVM tx
                 if (data.tx) {
                     const blockHex = receipt.block.toString(16);
@@ -333,8 +241,9 @@ class TelosEvm extends hyperion_plugin_1.HyperionPlugin {
         });
     }
     logDebug(msg) {
-        if (this.debug)
+        if (this.debug) {
             console.log(msg);
+        }
     }
 }
 exports.default = TelosEvm;
