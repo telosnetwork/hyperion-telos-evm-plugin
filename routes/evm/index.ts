@@ -180,6 +180,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 	// Setup Api instance just for signing, to optimize eosjs so it doesn't call get_required_keys every time
 	// TODO: Maybe cache the ABI here if eosjs doesn't already
+	//   similar to https://raw.githubusercontent.com/JakubDziworski/Eos-Offline-Transaction-Example/master/src/tx-builder.ts
 	const privateKeys = [opts.signer_key]
 	const accountPublicKey = PrivateKey.fromString(opts.signer_key).toPublic().toString()
 	const signatureProvider = new JsSignatureProvider(privateKeys)
@@ -224,7 +225,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 		const getInfoResponse = await getInfo()
 		const getBlockResponse = await getBlock(getInfoResponse.last_irreversible_block_num)
-		// TODO: also set the ABI provider similar to https://raw.githubusercontent.com/JakubDziworski/Eos-Offline-Transaction-Example/master/src/tx-builder.ts
 
 
 		const transaction = {
