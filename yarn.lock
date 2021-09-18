@@ -199,10 +199,10 @@
     "@ethersproject/properties" "^5.0.7"
     "@ethersproject/strings" "^5.0.8"
 
-"@telosnetwork/telosevm-js@0.1.1-20":
-  "integrity" "sha512-i+WVLGESgCST6K9L+hBmjb5EnczHohxYGdm2Lza8PPXWCIwllZlXtVAQLfofPB+YwO7utPAZYyFeUf+L9fOvGg=="
-  "resolved" "https://registry.npmjs.org/@telosnetwork/telosevm-js/-/telosevm-js-0.1.1-20.tgz"
-  "version" "0.1.1-20"
+"@telosnetwork/telosevm-js@0.1.1-24":
+  "integrity" "sha512-dVj+pGFw2V/PKlRhFaOl553FrLwxm1DZLValbvELi+j/R1nFxtyupHYkiP/Amb2JV/oJRcWMA/y130WjR3Sr6g=="
+  "resolved" "https://registry.npmjs.org/@telosnetwork/telosevm-js/-/telosevm-js-0.1.1-24.tgz"
+  "version" "0.1.1-24"
   dependencies:
     "@ethereumjs/common" "^2.3.1"
     "@ethereumjs/tx" "^3.2.1"

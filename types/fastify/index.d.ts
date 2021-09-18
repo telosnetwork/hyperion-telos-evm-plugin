@@ -8,6 +8,6 @@ interface EOSJS {
 declare module 'fastify' {
     export interface FastifyInstance {
         evm: any;
-        evmSigner: any;
+        cachingApi: any;
     }
 }

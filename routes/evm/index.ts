@@ -8,6 +8,7 @@ import moment from "moment";
 import { Api } from 'eosjs'
 import { JsSignatureProvider } from 'eosjs/dist/eosjs-jssig'
 import { PrivateKey } from 'eosjs-ecc'
+import { TransactionVars } from '@telosnetwork/telosevm-js'
 
 const BN = require('bn.js');
 const abiDecoder = require("abi-decoder");
@@ -191,7 +192,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	}
 	const getInfoResponse = await getInfo()
 
-	fastify.decorate('evmSigner', new Api({
+	fastify.decorate('cachingApi', new Api({
 		rpc: fastify.eosjs.rpc,
 		// abiProvider,
 		signatureProvider,
@@ -211,38 +212,21 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		return await fastify.eosjs.rpc.get_block(numOrId);
 	}
 
-	async function sendAction(
-		action: any,
-	  ): Promise<any> {
-		const actions = [action]
-
+	async function makeTrxVars(): Promise<TransactionVars> {
 		// TODO: parameterize this
 		const expiration = (moment())
-		  .add(45, 'seconds')
-		  .toDate()
-		  .toString()
-
+			.add(45, 'seconds')
+			.toDate()
+			.toString()
 
 		const getInfoResponse = await getInfo()
 		const getBlockResponse = await getBlock(getInfoResponse.last_irreversible_block_num)
-
-
-		const transaction = {
-		  actions,
-		  expiration,
-		  ref_block_num: getBlockResponse.block_num,
-		  ref_block_prefix: getBlockResponse.ref_block_prefix,
+		return {
+			expiration,
+			ref_block_num: getBlockResponse.block_num,
+			ref_block_prefix: getBlockResponse.ref_block_prefix,
 		}
-
-		const transactResult = await fastify.evmSigner.transact(transaction, { broadcast: true, sign: true }) as PushTransactionArgs
-		/*
-		const result = {
-			  signatures: transactResult.signatures,
-			  serializedTransaction: Buffer.from(transactResult.serializedTransaction).toString('hex')
-		}
-		return result
-		 */
- }
+	}
 
 	function toChecksumAddress(address) {
 		if (!address)
@@ -573,7 +557,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			ram_payer: fastify.evm.telos.telosContract,
 			tx: encodedTx,
 			sender: txParams.from,
-		});
+		}, this.fastify.cachingApi, await makeTrxVars());
 
 		if (gas.startsWith(REVERT_FUNCTION_SELECTOR)) {
 			let err = new TransactionError('Transaction reverted');
@@ -682,7 +666,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				account: opts.signer_account,
 				tx: encodedTx,
 				sender: txParams.from,
-			});
+			}, this.fastify.cachingApi, await makeTrxVars());
 			output = output.replace(/^0x/, '');
 			return "0x" + output;
 		} catch (e) {
@@ -716,7 +700,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				account: opts.signer_account,
 				tx: signedTx,
 				ram_payer: fastify.evm.telos.telosContract,
-			});
+			}, this.fastify.cachingApi, await makeTrxVars());
 
 			let consoleOutput = rawResponse.telos.processed.action_traces[0].console;
 
