@@ -204,14 +204,25 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 	// AUX FUNCTIONS
 
-	async function getInfo() {
-		console.log('getInfo without cache')
-		return await fastify.eosjs.rpc.get_info();
+	const poorMansCache = {
+		getInfo: undefined,
+		getBlock: undefined
 	}
 
-	async function getBlock(numOrId: string | number) {
-		console.log('getBlock without cache')
-		return await fastify.eosjs.rpc.get_block(numOrId);
+	async function getInfo() {
+		if (!poorMansCache.getInfo) {
+			console.log('getInfo without cache');
+			poorMansCache.getInfo = await fastify.eosjs.rpc.get_info();
+		}
+		return poorMansCache.getInfo
+	}
+	async function getBlock(numOrId) {
+		if (!poorMansCache.getBlock) {
+			console.log('getBlock without cache');
+			poorMansCache.getBlock = await fastify.eosjs.rpc.get_block(numOrId);
+		}
+
+		return poorMansCache.getBlock
 	}
 
 	async function makeTrxVars(): Promise<TransactionVars> {
