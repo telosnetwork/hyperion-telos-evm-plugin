@@ -190,6 +190,12 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			return Promise.resolve([accountPublicKey])
 		},
 	}
+
+	let poorMansCache = {
+		getInfo: undefined,
+		getBlock: undefined
+	}
+
 	const getInfoResponse = await getInfo()
 
 	fastify.decorate('cachingApi', new Api({
@@ -203,11 +209,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	}))
 
 	// AUX FUNCTIONS
-
-	const poorMansCache = {
-		getInfo: undefined,
-		getBlock: undefined
-	}
 
 	async function getInfo() {
 		if (!poorMansCache.getInfo) {
