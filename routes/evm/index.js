@@ -159,8 +159,12 @@ async function default_1(fastify, opts) {
             return Promise.resolve([accountPublicKey]);
         },
     };
+    let poorMansCache = {
+        getInfo: undefined,
+        getBlock: undefined
+    };
     const getInfoResponse = await getInfo();
-    fastify.decorate('evmSigner', new eosjs_1.Api({
+    fastify.decorate('cachingApi', new eosjs_1.Api({
         rpc: fastify.eosjs.rpc,
         // abiProvider,
         signatureProvider,
@@ -171,13 +175,20 @@ async function default_1(fastify, opts) {
     }));
     // AUX FUNCTIONS
     async function getInfo() {
-        return await fastify.eosjs.rpc.get_info();
+        if (!poorMansCache.getInfo) {
+            console.log('getInfo without cache');
+            poorMansCache.getInfo = await fastify.eosjs.rpc.get_info();
+        }
+        return poorMansCache.getInfo;
     }
     async function getBlock(numOrId) {
-        return await fastify.eosjs.rpc.get_block(numOrId);
+        if (!poorMansCache.getBlock) {
+            console.log('getBlock without cache');
+            poorMansCache.getBlock = await fastify.eosjs.rpc.get_block(numOrId);
+        }
+        return poorMansCache.getBlock;
     }
-    async function sendAction(action) {
-        const actions = [action];
+    async function makeTrxVars() {
         // TODO: parameterize this
         const expiration = ((0, moment_1.default)())
             .add(45, 'seconds')
@@ -185,20 +196,11 @@ async function default_1(fastify, opts) {
             .toString();
         const getInfoResponse = await getInfo();
         const getBlockResponse = await getBlock(getInfoResponse.last_irreversible_block_num);
-        const transaction = {
-            actions,
+        return {
             expiration,
             ref_block_num: getBlockResponse.block_num,
             ref_block_prefix: getBlockResponse.ref_block_prefix,
         };
-        const transactResult = await fastify.evmSigner.transact(transaction, { broadcast: true, sign: true });
-        /*
-        const result = {
-              signatures: transactResult.signatures,
-              serializedTransaction: Buffer.from(transactResult.serializedTransaction).toString('hex')
-        }
-        return result
-         */
     }
     function toChecksumAddress(address) {
         if (!address)
@@ -503,7 +505,7 @@ async function default_1(fastify, opts) {
             ram_payer: fastify.evm.telos.telosContract,
             tx: encodedTx,
             sender: txParams.from,
-        });
+        }, fastify.cachingApi, await makeTrxVars());
         if (gas.startsWith(REVERT_FUNCTION_SELECTOR)) {
             let err = new TransactionError('Transaction reverted');
             err.errorMessage = `execution reverted: ${parseRevertReason(gas)}`;
@@ -605,7 +607,7 @@ async function default_1(fastify, opts) {
                 account: opts.signer_account,
                 tx: encodedTx,
                 sender: txParams.from,
-            });
+            }, fastify.cachingApi, await makeTrxVars());
             output = output.replace(/^0x/, '');
             return "0x" + output;
         }
@@ -638,7 +640,7 @@ async function default_1(fastify, opts) {
                 account: opts.signer_account,
                 tx: signedTx,
                 ram_payer: fastify.evm.telos.telosContract,
-            });
+            }, fastify.cachingApi, await makeTrxVars());
             let consoleOutput = rawResponse.telos.processed.action_traces[0].console;
             let receiptLog = consoleOutput.slice(consoleOutput.indexOf(RECEIPT_LOG_START) + RECEIPT_LOG_START.length, consoleOutput.indexOf(RECEIPT_LOG_END));
             let receipt = JSON.parse(receiptLog);
