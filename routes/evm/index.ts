@@ -630,9 +630,19 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
      * Returns the current gas price in wei.
      */
     methods.set('eth_gasPrice', async () => {
-        let price = await fastify.evm.telos.getGasPrice();
-        let priceInt = parseInt(price, 16) * GAS_PRICE_OVERESTIMATE;
-        return isNaN(priceInt) ? null : "0x" + Math.floor(priceInt).toString(16);
+        const [cachedData, hash, path] = fastify.cacheManager.getCachedData({
+            method: 'GET',
+            url: 'v1/chain/get_gas_price'
+        } as FastifyRequest);
+        if (cachedData) {
+            return JSON.parse(cachedData);
+        } else {
+            let price = await fastify.evm.telos.getGasPrice();
+            let priceInt = parseInt(price, 16) * GAS_PRICE_OVERESTIMATE;
+            const gasPrice = isNaN(priceInt) ? null : "0x" + Math.floor(priceInt).toString(16);
+            fastify.cacheManager.setCachedData(hash, path, gasPrice);
+            return gasPrice;
+        }
     });
 
     /**
