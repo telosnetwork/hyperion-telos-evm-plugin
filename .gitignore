@@ -111,3 +111,5 @@ index.js
 index.js.map
 routes/**/*.js
 routes/**/*.js.map
+routes/evm/index.js
+routes/evm/index.js.map
