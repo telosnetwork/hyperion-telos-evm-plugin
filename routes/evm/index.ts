@@ -193,11 +193,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
         },
     }
 
-    let poorMansCache = {
-        getInfo: undefined,
-        getBlock: undefined
-    }
-
     const getInfoResponse = await getInfo()
 
     fastify.decorate('cachingApi', new Api({
@@ -218,7 +213,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
             url: 'v1/chain/get_info'
         } as FastifyRequest);
         if (cachedData) {
-            return JSON.parse(cachedData);
+            return cachedData as any;
         } else {
             const apiResponse = await fastify.eosjs.rpc.get_info();
             fastify.cacheManager.setCachedData(hash, path, apiResponse);
@@ -233,7 +228,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
             body: `{block_num_or_id:${numOrId}}`
         } as FastifyRequest);
         if (cachedData) {
-            return JSON.parse(cachedData);
+            return cachedData as any;
         } else {
             const apiResponse = await fastify.eosjs.rpc.get_block(numOrId);
             fastify.cacheManager.setCachedData(hash, path, apiResponse);
