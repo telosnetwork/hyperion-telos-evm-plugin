@@ -175,18 +175,33 @@ async function default_1(fastify, opts) {
     }));
     // AUX FUNCTIONS
     async function getInfo() {
-        if (!poorMansCache.getInfo) {
-            console.log('getInfo without cache');
-            poorMansCache.getInfo = await fastify.eosjs.rpc.get_info();
+        const [cachedData, hash, path] = fastify.cacheManager.getCachedData({
+            method: 'GET',
+            url: 'v1/chain/get_info'
+        });
+        if (cachedData) {
+            return JSON.parse(cachedData);
         }
-        return poorMansCache.getInfo;
+        else {
+            const apiResponse = await fastify.eosjs.rpc.get_info();
+            fastify.cacheManager.setCachedData(hash, path, apiResponse);
+            return apiResponse;
+        }
     }
     async function getBlock(numOrId) {
-        if (!poorMansCache.getBlock) {
-            console.log('getBlock without cache');
-            poorMansCache.getBlock = await fastify.eosjs.rpc.get_block(numOrId);
+        const [cachedData, hash, path] = fastify.cacheManager.getCachedData({
+            method: 'POST',
+            url: 'v1/chain/get_block',
+            body: `{block_num_or_id:${numOrId}}`
+        });
+        if (cachedData) {
+            return JSON.parse(cachedData);
         }
-        return poorMansCache.getBlock;
+        else {
+            const apiResponse = await fastify.eosjs.rpc.get_block(numOrId);
+            fastify.cacheManager.setCachedData(hash, path, apiResponse);
+            return apiResponse;
+        }
     }
     async function makeTrxVars() {
         // TODO: parameterize this
@@ -302,7 +317,7 @@ async function default_1(fastify, opts) {
         let logsBloom = null;
         let bloom = new bloom_1.default();
         const trxs = [];
-        //Logger.log(`Reconstructing block from receipts: ${JSON.stringify(receipts)}`)	
+        //Logger.log(`Reconstructing block from receipts: ${JSON.stringify(receipts)}`)
         for (const receiptDoc of receipts) {
             const receipt = receiptDoc._source['@raw'];
             gasLimit += receipt["gas_limit"];
@@ -654,7 +669,7 @@ async function default_1(fastify, opts) {
                     err.errorMessage = `Error: VM Exception while processing transaction: reverted with reason string '${parsePanicReason(output)}'`;
                 }
                 else {
-                    // TODO: improve errors in the contract and then use them here... 
+                    // TODO: improve errors in the contract and then use them here...
                     //   hardhat tests fail because our message from the contract is "One of the actions in this transaction was REVERTed."
                     //   and hardhat is looking for the string `revert` (lower case) when it's doing "expectRevert.unspecified()"
                     //let errors = receipt.errors;
