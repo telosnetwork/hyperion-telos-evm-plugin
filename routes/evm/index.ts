@@ -1284,10 +1284,10 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
                 Logger.log(`ErrorMessage: ${e.message} | Method: ${method} | REQ: ${JSON.stringify(params, null, 2)}`);
                 Logger.log(JSON.stringify(e, null, 2));
-                return jsonRPC2Error(reply, "InternalError", id, e.message);
+                reply.send(jsonRPC2Error(reply, "InternalError", id, e.message));
             }
         } else {
-            return jsonRPC2Error(reply, 'MethodNotFound', id, `Invalid method: ${method}`);
+            reply.send(jsonRPC2Error(reply, 'MethodNotFound', id, `Invalid method: ${method}`));
         }
     });
 }
