@@ -131,7 +131,7 @@ function jsonRPC2Error(reply: FastifyReply, type: string, requestId: string, mes
             errorCode = -32603;
         }
     }
-    let errorResponse = {
+    return {
         jsonrpc: "2.0",
         id: requestId,
         error: {
@@ -1282,7 +1282,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
                     return;
                 }
 
-                Logger.log(`ErrorMessage: ${e.message} | Method: ${method} | RESP: ${JSON.stringify(params, null, 2)}`);
+                Logger.log(`ErrorMessage: ${e.message} | Method: ${method} | REQ: ${JSON.stringify(params, null, 2)}`);
                 Logger.log(JSON.stringify(e, null, 2));
                 return jsonRPC2Error(reply, "InternalError", id, e.message);
             }
