@@ -489,11 +489,30 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
     // LOAD METHODS
 
+    // TODO: get geth attach working:
+    //  ➜  test_hardhat git:(gas_refactor) ✗ geth attach http://192.168.0.20:7000/evm
+    // Fatal: Failed to start the JavaScript console: api modules: 404 Not Found: {"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"Invalid method: rpc_modules"}}
+
+    /**
+     * Returns the supported modules
+     */
+    methods.set('rpc_modules', (params, headers) => {
+        return {
+            "eth":"1.0",
+            "net":"1.0",
+            "trace":"1.0",
+            "web3":"1.0"
+        };
+    })
+
+
+    // TODO: This is supposed to return the version of this RPC... need to invent something
+    // a geth example: "Geth/v1.9.15-stable-0f77f34b/linux-amd64/go1.14.4"
     /**
      * Returns the user-agent
      */
     methods.set('web3_clientVersion', (params, headers) => {
-        return headers['user-agent'];
+        return `TelosEVM/v1.0.0`;
     })
 
     /**
@@ -749,10 +768,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
                 } else if (output.startsWith(REVERT_PANIC_SELECTOR)) {
                     err.errorMessage = `Error: VM Exception while processing transaction: reverted with reason string '${parsePanicReason(output)}'`;
                 } else {
-                    // TODO: improve errors in the contract and then use them here...
-                    //   hardhat tests fail because our message from the contract is "One of the actions in this transaction was REVERTed."
-                    //   and hardhat is looking for the string `revert` (lower case) when it's doing "expectRevert.unspecified()"
-                    //let errors = receipt.errors;
                     // Borrowed message from hardhat node
                     if (receipt.errors.length > 0 && receipt.errors[0].toLowerCase().indexOf('revert') !== -1)
                         err.errorMessage = `Transaction reverted: function selector was not recognized.`;
@@ -768,7 +783,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
             return '0x' + rawResponse.eth.transactionHash;
         } catch (e) {
-            // TODO: here we probably should not just return null, that causes tests to hang
             if (e instanceof TransactionError)
                 throw e;
 
@@ -1284,6 +1298,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
                 Logger.log(`ErrorMessage: ${e.message} | Method: ${method} | REQ: ${JSON.stringify(params, null, 2)}`);
                 Logger.log(JSON.stringify(e, null, 2));
+                let errorMessage = e.message;
+
                 reply.send(jsonRPC2Error(reply, "InternalError", id, e.message));
             }
         } else {
