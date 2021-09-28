@@ -370,7 +370,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		termStruct[term] = value;
 		const results = await fastify.elastic.search({
 			index: `${fastify.manager.chain}-action-*`,
-			size: 1000,
+			size: 2000,
 			body: { query: { bool: { must: [{ term: termStruct }] } } }
 		});
 		return results?.body?.hits?.hits;
@@ -387,46 +387,67 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		return '0x' + head_block_num.toString(16);
 	}
 
-	async function getTracesForTrx(trxHash) {
-		if (trxHash) {
+	// https://openethereum.github.io/JSONRPC-trace-module
+	// adHoc is for the Ad-hoc Tracing methods which have a slightly different trace structure than the
+	//   Transaction-Trace Filtering (!adHoc) methods
+	function makeTrace(receipt, itx, adHoc) {
+		let trace: any = {
+			action: {
+				callType: toOpname(itx.callType),
+				//why is 0x not in the receipt table?
+				from: toChecksumAddress(itx.from),
+				gas: '0x' + itx.gas,
+				input: '0x' + itx.input,
+				to: toChecksumAddress(itx.to),
+				value: '0x' + itx.value
+			},
+			result: {
+				gasUsed: '0x' + itx.gasUsed,
+				output: '0x' + itx.output,
+			},
+			subtraces: itx.subtraces,
+			traceAddress: itx.traceAddress,
+			type: itx.type
+		}
 
-			// lookup receipt delta
-			//const receiptDelta = await searchDeltasByHash(trxHash);
-			//if (!receiptDelta) return null;
+		if (!adHoc) {
+			trace.blockHash = '0x' + receipt['block_hash'];
+			trace.blockNumber = receipt['block'];
+			trace.transactionHash = receipt['hash'];
+			trace.transactionPosition = receipt['trx_index'];
+		}
+
+		return trace;
+	}
+
+	function makeTraces(receipt, adHoc) {
+		const results = [];
+		for (const itx of receipt['itxs']) {
+			results.push(makeTrace(receipt, itx, adHoc));
+		}
+
+		if (!adHoc)
+			return results;
+
+		return {
+			"output": "0x" + receipt.output,
+			"stateDiff": null,
+			trace: results,
+			"vmTrace": null
+		}
+	}
+
+	async function getTracesForTrx(trxHash, adHoc) {
+		if (trxHash) {
 			const receiptAction = await searchActionByHash(trxHash);
 			if (!receiptAction) return null;
 			const receipt = receiptAction['@raw'];
 
-			// processing
-			const results = [];
-			let logCount = 0;
 			if (receipt && receipt['itxs']) {
-				for (const itx of receipt['itxs']) {
-					results.push({
-						action: {
-							callType: toOpname(itx.callType),
-							//why is 0x not in the receipt table?
-							from: toChecksumAddress(itx.from),
-							gas: '0x' + itx.gas,
-							input: '0x' + itx.input,
-							to: toChecksumAddress(itx.to),
-							value: '0x' + itx.value
-						},
-						blockHash: '0x' + receipt['block_hash'],
-						blockNumber: receipt['block'],
-						result: {
-							gasUsed: '0x' + itx.gasUsed,
-							output: '0x' + itx.output,
-						},
-						subtraces: itx.subtraces,
-						traceAddress: itx.traceAddress,
-						transactionHash: receipt['hash'],
-						transactionPosition: receipt['trx_index'],
-						type: itx.type});
-					logCount++;
-				}
+				return makeTraces(receipt, adHoc);
+			} else {
+				return null;
 			}
-			return results;
 		} else {
 			return null;
 		}
@@ -1150,18 +1171,82 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	 * curl --data '{"method":"trace_transaction","params":["0x17104ac9d3312d8c136b7f44d4b8b47852618065ebfa534bd2d3b5ef218ca1f3"],"id":1,"jsonrpc":"2.0"}' -H "Content-Type: application/json" -X POST localhost:7000/evm
 	 */
 	 methods.set('trace_transaction', async ([trxHash]) => {
-		return await getTracesForTrx(trxHash);
+		return await getTracesForTrx(trxHash, false);
 	});
 
+	 /*
+		 {
+		  "id": 1,
+		  "jsonrpc": "2.0",
+		  "result": {
+			"output": "0x",
+			"stateDiff": null,
+			"trace": [{
+			  "action": { ... },
+			  "result": {
+				"gasUsed": "0x0",
+				"output": "0x"
+			  },
+			  "subtraces": 0,
+			  "traceAddress": [],
+			  "type": "call"
+			}],
+			"vmTrace": null
+		  }
+		}
+
+	  */
 	methods.set('trace_replayTransaction', async ([trxHash, traceTypes]) => {
 		if (traceTypes.length !== 1 || traceTypes[0] !== 'trace')
 			throw new Error("trace_replayTransaction only supports the \"trace\" type of trace (not vmTrace or stateDiff");
 
-		return {
-			"stateDiff": null,
-			"trace": getTracesForTrx(trxHash),
-			"vmTrace": null
-		};
+		return getTracesForTrx(trxHash, true);
+	});
+
+	/*
+	{
+	  "id": 1,
+	  "jsonrpc": "2.0",
+	  "result": [
+		{
+		  "output": "0x",
+		  "stateDiff": null,
+		  "trace": [{
+			"action": { ... },
+			"result": {
+			  "gasUsed": "0x0",
+			  "output": "0x"
+			},
+			"subtraces": 0,
+			"traceAddress": [],
+			"type": "call"
+		  }],
+		  "transactionHash": "0x...",
+		  "vmTrace": null
+		},
+		{ ... }
+	  ]
+	}
+
+	 */
+
+	methods.set('trace_replayBlockTransactions', async ([block, traceTypes]) => {
+		if (traceTypes.length !== 1 || traceTypes[0] !== 'trace')
+			throw new Error("trace_replayBlockTransactions only supports the \"trace\" type of trace (not vmTrace or stateDiff");
+
+		const blockNumber = parseInt(await toBlockNumber(block), 16);
+		const receipts = await getReceiptsByTerm("@raw.block", blockNumber);
+		const sortedReceipts = receipts.sort((a, b) => {
+			return a.trx_index - b.trx_index;
+		})
+		let transactions = []
+		for (let i = 0; i < sortedReceipts.length; i++) {
+			let receipt = sortedReceipts[i];
+			let trx: any = makeTraces(receipt, true);
+			trx.transactionHash = receipt.hash;
+			transactions.push(trx);
+		}
+		return transactions;
 	});
 
 	// END METHODS
