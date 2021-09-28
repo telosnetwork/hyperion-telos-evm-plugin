@@ -526,6 +526,11 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	methods.set('eth_accounts', () => []);
 
 	/**
+	 * Returns a list of pending transactions
+	 */
+	methods.set('parity_pendingTransactions', () => []);
+
+	/**
 	 * Returns the number of transactions sent from an address.
 	 */
 	methods.set('eth_getTransactionCount', async ([address]) => {
@@ -1306,6 +1311,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				return jsonRPC2Error(reply, "InternalError", id, e.message);
 			}
 		} else {
+			Logger.log(`MethodNotFound: ${method}`);
 			return jsonRPC2Error(reply, 'MethodNotFound', id, `Invalid method: ${method}`);
 		}
 	});
