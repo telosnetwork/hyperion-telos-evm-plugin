@@ -96,9 +96,7 @@ export default class TelosEvm extends HyperionPlugin {
                 }
             },
             handler: async (delta: HyperionDelta) => {
-                const data = delta.data;
-
-                const blockHex = (data.block as number).toString(16);
+                const blockHex = (delta["@global"].block_num as number).toString(16);
                 const blockHash = createKeccakHash('keccak256').update(blockHex).digest('hex');
 
                 delta['@evmBlockHash'] = blockHash;
