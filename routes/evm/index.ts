@@ -11,6 +11,7 @@ import {PrivateKey} from 'eosjs-ecc'
 import {TransactionVars} from '@telosnetwork/telosevm-js'
 import {handleChainApiRedirect} from "../../../../../api/helpers/functions";
 
+
 const BN = require('bn.js');
 const abiDecoder = require("abi-decoder");
 const abi = require("ethereumjs-abi");
@@ -22,6 +23,25 @@ const RECEIPT_LOG_END = "}}RCPT";
 
 const REVERT_FUNCTION_SELECTOR = '0x08c379a0'
 const REVERT_PANIC_SELECTOR = '0x4e487b71'
+
+const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
+const NULL_HASH = '0x0000000000000000000000000000000000000000000000000000000000000000';
+
+const BLOCK_TEMPLATE = {
+	difficulty: "0x0",
+	extraData: NULL_HASH,
+	miner: ZERO_ADDR,
+	mixHash: NULL_HASH,
+	nonce: null,
+	parentHash: NULL_HASH,
+	receiptsRoot: NULL_HASH,
+	sha3Uncles: NULL_HASH,
+	size: "0x0",
+	stateRoot: NULL_HASH,
+	totalDifficulty: "0x0",
+	transactionsRoot: NULL_HASH,
+	uncles: []
+};
 
 function numToHex(input: number | string) {
     if (typeof input === 'number') {
@@ -175,8 +195,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	];
 	const chainIds = [1, 3, 4, 42];
 	const METAMASK_EXTENSION_ORIGIN = 'chrome-extension://nkbihfbeogaeaoehlefnkodbefgpgknn';
-	const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
-	const NULL_HASH = '0x0000000000000000000000000000000000000000000000000000000000000000';
 	const GAS_OVER_ESTIMATE_MULTIPLIER = 1.25;
 	let Logger = new DebugLogger(opts.debug);
 	
@@ -279,8 +297,76 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		return _logs;
 	}
 
-	async function reconstructBlockFromReceipts(blockNumber: string, receipts: any[], full: boolean) {
-		let actions = [];
+	async function emptyBlockFromNumber(blockNumber: number) {
+		try {
+			const results = await fastify.elastic.search({
+				index: `${fastify.manager.chain}-delta-*`,
+				body: {
+					size: 1,
+					query: {
+						bool: {
+							must: [{ term: { "@global.block_num": blockNumber } }]
+						}
+					}
+				}
+			});
+			//Logger.log(`searching action by hash: ${trxHash} got result: \n${JSON.stringify(results?.body)}`)
+			let blockDelta = results?.body?.hits?.hits[0]?._source;
+
+			let timestamp = new Date(blockDelta['@timestamp'] + 'Z').getTime() / 1000 | 0;
+
+			return Object.assign({}, BLOCK_TEMPLATE, {
+				gasLimit: numToHex(0),
+				gasUsed: 0,
+				hash: "0x" + blockDelta["@evmBlockHash"],
+				logsBloom: "0x" + new Bloom().bitvector.toString("hex"),
+				nonce: null,
+				number: '0x' + blockNumber.toString(16),
+				timestamp: "0x" + timestamp?.toString(16),
+				transactions: [],
+			});
+		} catch (e) {
+			console.log(e);
+			return null;
+		}
+	}
+
+	async function emptyBlockFromHash(blockHash: string) {
+		try {
+			const results = await fastify.elastic.search({
+				index: `${fastify.manager.chain}-delta-*`,
+				body: {
+					size: 1,
+					query: {
+						bool: {
+							must: [{ term: { "@evmBlockHash": blockHash } }]
+						}
+					}
+				}
+			});
+			//Logger.log(`searching action by hash: ${trxHash} got result: \n${JSON.stringify(results?.body)}`)
+			let blockDelta = results?.body?.hits?.hits[0]?._source;
+
+			let timestamp = new Date(blockDelta['@timestamp'] + 'Z').getTime() / 1000 | 0;
+
+			return Object.assign({}, BLOCK_TEMPLATE, {
+				gasLimit: numToHex(0),
+				gasUsed: 0,
+				hash: "0x" + blockDelta["@evmBlockHash"],
+				logsBloom: "0x" + new Bloom().bitvector.toString("hex"),
+				nonce: null,
+				number: '0x' + blockDelta["@global.block_num"].toString(16),
+				timestamp: "0x" + timestamp?.toString(16),
+				transactions: [],
+			});
+		} catch (e) {
+			console.log(e);
+			return null;
+		}
+	}
+
+
+	async function reconstructBlockFromReceipts(receipts: any[], full: boolean) {
 		let blockHash;
 		let blockHex: string;
 		let gasLimit = 0;
@@ -330,39 +416,17 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				});
 			}
 		}
-		// TODO: this better, receipt.epoch is what we want, but if we got this far we don't have any transactions to pull from
 
-		if (!timestamp)
-			timestamp = new Date().getTime() / 1000 | 0
-
-		if (!blockHex)
-			blockHex = '0x' + blockNumber;
-
-		if (!blockHash)
-			blockHash = blockHexToHash(blockHex);
-
-		return {
-			difficulty: "0x0",
-			extraData: NULL_HASH,
+		return Object.assign({}, BLOCK_TEMPLATE, {
 			gasLimit: numToHex(gasLimit),
 			gasUsed: gasUsedBlock,
 			hash: blockHash,
 			logsBloom: logsBloom,
-			miner: ZERO_ADDR,
-			mixHash: NULL_HASH,
 			nonce: null,
 			number: blockHex,
-			parentHash: NULL_HASH,
-			receiptsRoot: NULL_HASH,
-			sha3Uncles: NULL_HASH,
-			size: "0x0",
-			stateRoot: NULL_HASH,
 			timestamp: "0x" + timestamp?.toString(16),
-			totalDifficulty: "0x0",
 			transactions: trxs,
-			transactionsRoot: NULL_HASH,
-			uncles: []
-		};
+		});
 	}
 
 	async function getReceiptsByTerm(term: string, value: any) {
@@ -890,7 +954,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	methods.set('eth_getBlockByNumber', async ([block, full]) => {
 		const blockNumber = parseInt(await toBlockNumber(block), 16);
 		const receipts = await getReceiptsByTerm("@raw.block", blockNumber);
-		return await reconstructBlockFromReceipts(blockNumber.toString(16), receipts, full);
+		return receipts.length > 0 ? await reconstructBlockFromReceipts(receipts, full) : await emptyBlockFromNumber(blockNumber);
 	});
 
 	/**
@@ -902,7 +966,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			_hash = _hash.slice(2);
 		}
 		const receipts = await getReceiptsByTerm("@raw.block_hash", _hash);
-		return await reconstructBlockFromReceipts(_hash, receipts, full);
+		return receipts.length > 0 ? await reconstructBlockFromReceipts(receipts, full) : await emptyBlockFromHash(_hash);
 	});
 
 	/**
