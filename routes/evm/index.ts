@@ -472,6 +472,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					}
 				}
 			});
+			return "0x" + Number(results?.body?.hits?.hits[0]?._source["@global"].block_num).toString(16);
 		}
 	}
 
