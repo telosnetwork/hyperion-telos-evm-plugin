@@ -446,15 +446,33 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		return results?.body?.hits?.hits;
 	}
 
-	async function getCurrentBlockNumber() {
-		const global = await fastify.eosjs.rpc.get_table_rows({
-			code: "eosio",
-			scope: "eosio",
-			table: "global",
-			json: true
-		});
-		const head_block_num = parseInt(global.rows[0].block_num, 10);
-		return '0x' + head_block_num.toString(16);
+	async function getCurrentBlockNumber(indexed: boolean = false) {
+		if (!indexed) {
+			const global = await fastify.eosjs.rpc.get_table_rows({
+				code: "eosio",
+				scope: "eosio",
+				table: "global",
+				json: true
+			});
+			const head_block_num = parseInt(global.rows[0].block_num, 10);
+			return '0x' + head_block_num.toString(16);
+		} else {
+			const results = await fastify.elastic.search({
+				index: `${fastify.manager.chain}-delta-*`,
+				body: {
+					size: 1,
+					sort: [{ "@global.block_num": { order: "desc" } }],
+					query: {
+						bool: {
+							must: [
+								{ term: { "table": "global" } },
+								{ term: { "code": "eosio" } },
+							]
+						}
+					}
+				}
+			});
+		}
 	}
 
 	// https://openethereum.github.io/JSONRPC-trace-module
@@ -529,7 +547,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 	async function toBlockNumber(blockParam: string) {
 		if (blockParam == "latest" || blockParam == "pending")
-			return await getCurrentBlockNumber();
+			return await getCurrentBlockNumber(true);
 
 		if (blockParam == "earliest")
 			return "0x0";
