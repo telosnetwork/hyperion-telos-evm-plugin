@@ -312,12 +312,15 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			});
 			//Logger.log(`searching action by hash: ${trxHash} got result: \n${JSON.stringify(results?.body)}`)
 			let blockDelta = results?.body?.hits?.hits[0]?._source;
+			if (!blockDelta) {
+				return null;
+			}
 
 			let timestamp = new Date(blockDelta['@timestamp'] + 'Z').getTime() / 1000 | 0;
 
 			return Object.assign({}, BLOCK_TEMPLATE, {
-				gasLimit: numToHex(0),
-				gasUsed: 0,
+				gasLimit: "0x0",
+				gasUsed: "0x0",
 				hash: "0x" + blockDelta["@evmBlockHash"],
 				logsBloom: "0x" + new Bloom().bitvector.toString("hex"),
 				nonce: null,
@@ -339,23 +342,26 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					size: 1,
 					query: {
 						bool: {
-							must: [{ term: { "@evmBlockHash": blockHash } }]
+							must: [{term: {"@evmBlockHash": blockHash}}]
 						}
 					}
 				}
 			});
 			//Logger.log(`searching action by hash: ${trxHash} got result: \n${JSON.stringify(results?.body)}`)
 			let blockDelta = results?.body?.hits?.hits[0]?._source;
+			if (!blockDelta) {
+				return null;
+			}
 
 			let timestamp = new Date(blockDelta['@timestamp'] + 'Z').getTime() / 1000 | 0;
 
 			return Object.assign({}, BLOCK_TEMPLATE, {
-				gasLimit: numToHex(0),
-				gasUsed: 0,
+				gasLimit: "0x0",
+				gasUsed: "0x0",
 				hash: "0x" + blockDelta["@evmBlockHash"],
 				logsBloom: "0x" + new Bloom().bitvector.toString("hex"),
 				nonce: null,
-				number: '0x' + blockDelta["@global.block_num"].toString(16),
+				number: '0x' + blockDelta["@global"].block_num.toString(16),
 				timestamp: "0x" + timestamp?.toString(16),
 				transactions: [],
 			});
@@ -419,7 +425,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 		return Object.assign({}, BLOCK_TEMPLATE, {
 			gasLimit: numToHex(gasLimit),
-			gasUsed: gasUsedBlock,
+			gasUsed: numToHex(gasUsedBlock),
 			hash: blockHash,
 			logsBloom: logsBloom,
 			nonce: null,
