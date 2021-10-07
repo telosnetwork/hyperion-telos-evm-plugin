@@ -1349,6 +1349,23 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		return transactions;
 	});
 
+
+	methods.set('trace_block', async ([block]) => {
+		const blockNumber = parseInt(await toBlockNumber(block), 16);
+		const receipts = await getReceiptsByTerm("@raw.block", blockNumber);
+		const sortedReceipts = receipts.sort((a, b) => {
+			return a.trx_index - b.trx_index;
+		})
+		let transactions = []
+		for (let i = 0; i < sortedReceipts.length; i++) {
+			let receipt = sortedReceipts[i];
+			let trx: any = makeTraces(receipt, false);
+			trx.transactionHash = receipt.hash;
+			transactions.push(trx);
+		}
+		return transactions;
+	});
+
 	// END METHODS
 
 	/**
@@ -1363,6 +1380,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	 async function doRpcMethod(jsonRpcRequest: any, request: FastifyRequest, reply: FastifyReply) {
 		 const { jsonrpc, id, method, params } = jsonRpcRequest;
 		 if (jsonrpc !== "2.0") {
+			 Logger.log(`Got invalid jsonrpc, request.body was: ${JSON.stringify(request.body, null, 4)}`);
 			 return jsonRPC2Error(reply, "InvalidRequest", id, "Invalid JSON RPC");
 		 }
 		 if (methods.has(method)) {
@@ -1415,10 +1433,19 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			if (request.body.length == 0)
 				return {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}
 
-			let promises = request.body.map((rpcRequest) => {
-				doRpcMethod(rpcRequest, request, reply);
-			});
-			return await Promise.all(promises);
+			const tRef = process.hrtime.bigint();
+			let promises = [];
+			for (let i = 0; i < request.body.length; i++) {
+				let promise = doRpcMethod(request.body[i], request, reply);
+				promises.push(promise);
+			}
+			let responses = await Promise.all(promises);
+			const duration = ((Number(process.hrtime.bigint()) - Number(tRef)) / 1000).toFixed(3);
+			const _usage = reply.getHeader('x-ratelimit-remaining');
+			const _limit = reply.getHeader('x-ratelimit-limit');
+			const _ip = request.headers['x-real-ip'];
+			Logger.log(`${new Date().toISOString()} - ${duration} μs - ${_ip} (${_usage}/${_limit}) - ${origin} - BATCH OF ${responses.length}`);
+			return responses;
 		} else {
 			return await doRpcMethod(request.body, request, reply);
 		}
