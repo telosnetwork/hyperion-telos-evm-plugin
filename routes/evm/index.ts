@@ -1360,8 +1360,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		tags: ['evm'],
 	};
 
-	 async function doRpcMethod(request: any, reply: FastifyReply) {
-		 const { jsonrpc, id, method, params } = request;
+	 async function doRpcMethod(jsonRpcRequest: any, request: FastifyRequest, reply: FastifyReply) {
+		 const { jsonrpc, id, method, params } = jsonRpcRequest;
 		 if (jsonrpc !== "2.0") {
 			 return jsonRPC2Error(reply, "InvalidRequest", id, "Invalid JSON RPC");
 		 }
@@ -1416,11 +1416,11 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				return {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}
 
 			let promises = request.body.map((rpcRequest) => {
-				doRpcMethod(rpcRequest, reply);
+				doRpcMethod(rpcRequest, request, reply);
 			});
 			return await Promise.all(promises);
 		} else {
-			return await doRpcMethod(request.body, reply);
+			return await doRpcMethod(request.body, request, reply);
 		}
 	});
 }
