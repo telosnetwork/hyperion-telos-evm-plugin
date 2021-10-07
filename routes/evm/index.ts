@@ -119,46 +119,52 @@ function toOpname(opcode) {
 }
 
 function jsonRPC2Error(reply: FastifyReply, type: string, requestId: string, message: string, code?: number) {
-    let errorCode = code;
-    switch (type) {
-        case "InvalidRequest": {
-            reply.statusCode = 400;
-            errorCode = -32600;
-            break;
-        }
-        case "MethodNotFound": {
-            reply.statusCode = 404;
-            errorCode = -32601;
-            break;
-        }
-        case "ParseError": {
-            reply.statusCode = 400;
-            errorCode = -32700;
-            break;
-        }
-        case "InvalidParams": {
-            reply.statusCode = 400;
-            errorCode = -32602;
-            break;
-        }
-        case "InternalError": {
-            reply.statusCode = 500;
-            errorCode = -32603;
-            break;
-        }
-        default: {
-            reply.statusCode = 500;
-            errorCode = -32603;
-        }
-    }
-    return {
-        jsonrpc: "2.0",
-        id: requestId,
-        error: {
-            code: errorCode,
-            message
-        }
-    };
+	let errorCode = code;
+	switch (type) {
+		case "InvalidRequest": {
+			if (reply)
+				reply.statusCode = 400;
+			errorCode = -32600;
+			break;
+		}
+		case "MethodNotFound": {
+			if (reply)
+				reply.statusCode = 404;
+			errorCode = -32601;
+			break;
+		}
+		case "ParseError": {
+			if (reply)
+				reply.statusCode = 400;
+			errorCode = -32700;
+			break;
+		}
+		case "InvalidParams": {
+			if (reply)
+				reply.statusCode = 400;
+			errorCode = -32602;
+			break;
+		}
+		case "InternalError": {
+			if (reply)
+				reply.statusCode = 500;
+			errorCode = -32603;
+			break;
+		}
+		default: {
+			if (reply)
+				reply.statusCode = 500;
+			errorCode = -32603;
+		}
+	}
+	let errorResponse = {
+		jsonrpc: "2.0",
+		id: requestId,
+		error: {
+			code: errorCode,
+			message
+		}
+	};
 }
 
 interface EthLog {
@@ -1354,54 +1360,67 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		tags: ['evm'],
 	};
 
-	fastify.post('/evm', { schema }, async (request: FastifyRequest, reply: FastifyReply) => {
-		const { jsonrpc, id, method, params } = request.body as any;
-		if (jsonrpc !== "2.0") {
-			return jsonRPC2Error(reply, "InvalidRequest", id, "Invalid JSON RPC");
-		}
-		if (methods.has(method)) {
-			const tRef = process.hrtime.bigint();
-			const func = methods.get(method);
-			try {
-				const result = await func(params, request.headers);
-				let origin;
-				if (request.headers['origin'] === METAMASK_EXTENSION_ORIGIN) {
-					origin = 'MetaMask';
-				} else {
-					if (request.headers['origin']) {
-						origin = request.headers['origin'];
-					} else {
-						origin = request.headers['user-agent'];
-					}
-				}
-				const _usage = reply.getHeader('x-ratelimit-remaining');
-				const _limit = reply.getHeader('x-ratelimit-limit');
-				const _ip = request.headers['x-real-ip'];
+	 async function doRpcMethod(request: any, reply: FastifyReply) {
+		 const { jsonrpc, id, method, params } = request;
+		 if (jsonrpc !== "2.0") {
+			 return jsonRPC2Error(reply, "InvalidRequest", id, "Invalid JSON RPC");
+		 }
+		 if (methods.has(method)) {
+			 const tRef = process.hrtime.bigint();
+			 const func = methods.get(method);
+			 try {
+				 const result = await func(params, request.headers);
+				 let origin;
+				 if (request.headers['origin'] === METAMASK_EXTENSION_ORIGIN) {
+					 origin = 'MetaMask';
+				 } else {
+					 if (request.headers['origin']) {
+						 origin = request.headers['origin'];
+					 } else {
+						 origin = request.headers['user-agent'];
+					 }
+				 }
+				 const _usage = reply.getHeader('x-ratelimit-remaining');
+				 const _limit = reply.getHeader('x-ratelimit-limit');
+				 const _ip = request.headers['x-real-ip'];
 
-				const duration = ((Number(process.hrtime.bigint()) - Number(tRef)) / 1000).toFixed(3);
-				
-				Logger.log(`${new Date().toISOString()} - ${duration} μs - ${_ip} (${_usage}/${_limit}) - ${origin} - ${method}`);
-				Logger.log(`REQ: ${JSON.stringify(params)} | RESP: ${typeof result == 'object' ? JSON.stringify(result, null, 2) : result}`);
-				reply.send({ id, jsonrpc, result });
-			} catch (e) {
-				if (e instanceof TransactionError) {
-					Logger.log(`VM execution error, reverted: ${e.errorMessage} | Method: ${method} | RESP: ${JSON.stringify(params, null, 2)}`);
-					let code = e.code || 3;
-					let message = e.errorMessage;
-					let data = e.data;
-					let error = { code, message, data };
-					reply.send({ id, jsonrpc, error });
-					Logger.log(`REQ: ${JSON.stringify(params)} | ERROR RESP: ${JSON.stringify(error, null, 2)}`);
-					return;
-				}
-				
-				Logger.log(`ErrorMessage: ${e.message} | Method: ${method} | RESP: ${JSON.stringify(params, null, 2)}`);
-				Logger.log(JSON.stringify(e, null, 2));
-				return jsonRPC2Error(reply, "InternalError", id, e.message);
-			}
+				 const duration = ((Number(process.hrtime.bigint()) - Number(tRef)) / 1000).toFixed(3);
+
+				 Logger.log(`${new Date().toISOString()} - ${duration} μs - ${_ip} (${_usage}/${_limit}) - ${origin} - ${method}`);
+				 Logger.log(`REQ: ${JSON.stringify(params)} | RESP: ${typeof result == 'object' ? JSON.stringify(result, null, 2) : result}`);
+				 return { id, jsonrpc, result };
+			 } catch (e) {
+				 if (e instanceof TransactionError) {
+					 Logger.log(`VM execution error, reverted: ${e.errorMessage} | Method: ${method} | RESP: ${JSON.stringify(params, null, 2)}`);
+					 let code = e.code || 3;
+					 let message = e.errorMessage;
+					 let data = e.data;
+					 let error = { code, message, data };
+					 Logger.log(`REQ: ${JSON.stringify(params)} | ERROR RESP: ${JSON.stringify(error, null, 2)}`);
+					 return { id, jsonrpc, error };
+				 }
+
+				 Logger.log(`ErrorMessage: ${e.message} | Method: ${method} | RESP: ${JSON.stringify(params, null, 2)}`);
+				 Logger.log(JSON.stringify(e, null, 2));
+				 return jsonRPC2Error(reply, "InternalError", id, e.message);
+			 }
+		 } else {
+			 Logger.log(`MethodNotFound: ${method}`);
+			 return jsonRPC2Error(reply, 'MethodNotFound', id, `Invalid method: ${method}`);
+		 }
+	 }
+
+	fastify.post('/evm', { schema }, async (request: FastifyRequest, reply: FastifyReply) => {
+		if (Array.isArray(request.body)) {
+			if (request.body.length == 0)
+				return {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}
+
+			let promises = request.body.map((rpcRequest) => {
+				doRpcMethod(rpcRequest, reply);
+			});
+			return await Promise.all(promises);
 		} else {
-			Logger.log(`MethodNotFound: ${method}`);
-			return jsonRPC2Error(reply, 'MethodNotFound', id, `Invalid method: ${method}`);
+			return await doRpcMethod(request.body, reply);
 		}
 	});
 }
