@@ -946,7 +946,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					numToHex(receipt['trx_index'])
 				),
 				errors: receipt['errors'],
-				output: '0x' + receipt['output']
+				//output: '0x' + receipt['output']
 			};
 		} else {
 			return null;
