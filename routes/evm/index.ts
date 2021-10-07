@@ -1366,6 +1366,24 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		return transactions;
 	});
 
+
+	/*
+	// TODO: once we understand what the index position is...
+	methods.set('trace_get', async ([block, indexPositions]) => {
+		const blockNumber = parseInt(await toBlockNumber(block), 16);
+		const receipts = await getReceiptsByTerm("@raw.block", blockNumber);
+		if (indexPositions.length !== 1)
+			return null;
+
+		let indexPosition = indexPositions[0];
+		for (let i = 0; i < receipts.length; i++) {
+			if (receipts[i].... == indexPosition)
+				return receipts[i]...
+		}
+		return null;
+	});
+	*/
+
 	// END METHODS
 
 	/**
