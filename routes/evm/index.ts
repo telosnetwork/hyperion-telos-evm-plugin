@@ -303,6 +303,12 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		return _logs;
 	}
 
+	function getParentBlockHash(blockNumberHex: string) {
+		let blockNumber = parseInt(blockNumberHex, 16);
+		let parentBlockHex = (blockNumber - 1).toString(16);
+		return blockHexToHash(parentBlockHex);
+	}
+
 	async function emptyBlockFromNumber(blockNumber: number) {
 		try {
 			const results = await fastify.elastic.search({
@@ -323,13 +329,15 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			}
 
 			let timestamp = new Date(blockDelta['@timestamp'] + 'Z').getTime() / 1000 | 0;
+			let blockNumberHex = '0x' + blockNumber.toString(16);
 
 			return Object.assign({}, BLOCK_TEMPLATE, {
 				gasLimit: "0x0",
 				gasUsed: "0x0",
+				parentHash: getParentBlockHash(blockNumberHex),
 				hash: "0x" + blockDelta["@evmBlockHash"],
 				logsBloom: "0x" + new Bloom().bitvector.toString("hex"),
-				number: '0x' + blockNumber.toString(16),
+				number: blockNumberHex,
 				timestamp: "0x" + timestamp?.toString(16),
 				transactions: [],
 			});
@@ -359,13 +367,15 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			}
 
 			let timestamp = new Date(blockDelta['@timestamp'] + 'Z').getTime() / 1000 | 0;
+			let blockNumberHex = '0x' + blockDelta["@global"].block_num.toString(16);
 
 			return Object.assign({}, BLOCK_TEMPLATE, {
 				gasLimit: "0x0",
 				gasUsed: "0x0",
+				parentHash: getParentBlockHash(blockNumberHex),
 				hash: "0x" + blockDelta["@evmBlockHash"],
 				logsBloom: "0x" + new Bloom().bitvector.toString("hex"),
-				number: '0x' + blockDelta["@global"].block_num.toString(16),
+				number: blockNumberHex,
 				timestamp: "0x" + timestamp?.toString(16),
 				transactions: [],
 			});
@@ -430,6 +440,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		return Object.assign({}, BLOCK_TEMPLATE, {
 			gasLimit: numToHex(gasLimit),
 			gasUsed: numToHex(gasUsedBlock),
+			parentHash: getParentBlockHash(blockHex),
 			hash: blockHash,
 			logsBloom: logsBloom,
 			number: blockHex,
