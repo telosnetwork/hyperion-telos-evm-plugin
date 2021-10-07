@@ -1458,6 +1458,16 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				promises.push(promise);
 			}
 			let responses = await Promise.all(promises);
+			let origin;
+			if (request.headers['origin'] === METAMASK_EXTENSION_ORIGIN) {
+				origin = 'MetaMask';
+			} else {
+				if (request.headers['origin']) {
+					origin = request.headers['origin'];
+				} else {
+					origin = request.headers['user-agent'];
+				}
+			}
 			const duration = ((Number(process.hrtime.bigint()) - Number(tRef)) / 1000).toFixed(3);
 			const _usage = reply.getHeader('x-ratelimit-remaining');
 			const _limit = reply.getHeader('x-ratelimit-limit');
