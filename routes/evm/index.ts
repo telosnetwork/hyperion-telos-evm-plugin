@@ -32,7 +32,7 @@ const BLOCK_TEMPLATE = {
 	extraData: NULL_HASH,
 	miner: ZERO_ADDR,
 	mixHash: NULL_HASH,
-	nonce: "0x00000000",
+	nonce: "0x0000000000000000",
 	parentHash: NULL_HASH,
 	receiptsRoot: NULL_HASH,
 	sha3Uncles: NULL_HASH,
