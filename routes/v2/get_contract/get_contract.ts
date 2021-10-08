@@ -28,7 +28,7 @@ async function getContract(fastify: FastifyInstance, request: FastifyRequest) {
 
 	if (results['body']['hits']['hits'].length === 1) {
 		const result = results['body']['hits']['hits'][0]._source['@raw'];
-		response.creation_trx = `0x${result.hash}`;
+		response.creation_trx = `0x${result.hash.replace(/^0x/, '')}`;
 		response.creator = result.from;
 		response.block_num = result.block;
 		response.timestamp = result.epoch;
