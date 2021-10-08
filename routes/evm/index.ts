@@ -205,11 +205,80 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	let Logger = new DebugLogger(opts.debug);
 	
 
-	// AUX FUNCTIONS
+    // Setup Api instance just for signing, to optimize eosjs so it doesn't call get_required_keys every time
+    // TODO: Maybe cache the ABI here if eosjs doesn't already
+    //   similar to https://raw.githubusercontent.com/JakubDziworski/Eos-Offline-Transaction-Example/master/src/tx-builder.ts
+    const privateKeys = [opts.signer_key]
+    const accountPublicKey = PrivateKey.fromString(opts.signer_key).toPublic().toString()
+    const signatureProvider = new JsSignatureProvider(privateKeys)
+    const authorityProvider: AuthorityProvider = {
+        getRequiredKeys: (args: AuthorityProviderArgs): Promise<string[]> => {
+            return Promise.resolve([accountPublicKey])
+        },
+    }
 
-	function toChecksumAddress(address) {
-		if (!address)
-			return address
+    const getInfoResponse = await getInfo()
+
+    fastify.decorate('cachingApi', new Api({
+        rpc: fastify.eosjs.rpc,
+        // abiProvider,
+        signatureProvider,
+        authorityProvider,
+        chainId: getInfoResponse.chain_id,
+        textDecoder: new TextDecoder(),
+        textEncoder: new TextEncoder(),
+    }))
+
+    // AUX FUNCTIONS
+
+    async function getInfo() {
+        const [cachedData, hash, path] = fastify.cacheManager.getCachedData({
+            method: 'GET',
+            url: 'v1/chain/get_info'
+        } as FastifyRequest);
+        if (cachedData) {
+            return JSON.parse(cachedData);
+        } else {
+            const apiResponse = await fastify.eosjs.rpc.get_info();
+            fastify.cacheManager.setCachedData(hash, path, JSON.stringify(apiResponse));
+            return apiResponse;
+        }
+    }
+
+    async function getBlock(numOrId) {
+        const [cachedData, hash, path] = fastify.cacheManager.getCachedData({
+            method: 'POST',
+            url: 'v1/chain/get_block',
+            body: `{block_num_or_id:${numOrId}}`
+        } as FastifyRequest);
+        if (cachedData) {
+            return JSON.parse(cachedData);
+        } else {
+            const apiResponse = await fastify.eosjs.rpc.get_block(numOrId);
+            fastify.cacheManager.setCachedData(hash, path, JSON.stringify(apiResponse));
+            return apiResponse;
+        }
+    }
+
+    async function makeTrxVars(): Promise<TransactionVars> {
+        // TODO: parameterize this
+        const expiration = (moment())
+            .add(45, 'seconds')
+            .toDate()
+            .toString()
+
+        const getInfoResponse = await getInfo()
+        const getBlockResponse = await getBlock(getInfoResponse.last_irreversible_block_num)
+        return {
+            expiration,
+            ref_block_num: getBlockResponse.block_num,
+            ref_block_prefix: getBlockResponse.ref_block_prefix,
+        }
+    }
+
+    function toChecksumAddress(address) {
+        if (!address)
+            return address
 
 		address = address.toLowerCase().replace('0x', '')
 		if (address.length != 40)
@@ -589,12 +658,26 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 	// LOAD METHODS
 
-	/**
-	 * Returns the user-agent
-	 */
-	methods.set('web3_clientVersion', (params, headers) => {
-		return headers['user-agent'];
-	})
+    /**
+     * Returns the supported modules
+     */
+    methods.set('rpc_modules', (params, headers) => {
+        return {
+            "eth":"1.0",
+            "net":"1.0",
+            "trace":"1.0",
+            "web3":"1.0"
+        };
+    })
+
+
+    /**
+     * Returns the user-agent
+     */
+    methods.set('web3_clientVersion', (params, headers) => {
+		// TODO: maybe figure out how to set this dynamically from a tag?
+        return `TelosEVM/v1.0.0`;
+    })
 
 	/**
 	 * Returns true if client is actively listening for network connections.
@@ -681,12 +764,12 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			gasLimit: 10000000000000000
 		});
 
-		const gas = await fastify.evm.telos.estimateGas({
-			account: opts.signer_account,
-			ram_payer: fastify.evm.telos.telosContract,
-			tx: encodedTx,
-			sender: txParams.from,
-		});
+        const gas = await fastify.evm.telos.estimateGas({
+            account: opts.signer_account,
+            ram_payer: fastify.evm.telos.telosContract,
+            tx: encodedTx,
+            sender: txParams.from,
+        }, fastify.cachingApi, await makeTrxVars());
 
 		if (gas.startsWith(REVERT_FUNCTION_SELECTOR)) {
 			let err = new TransactionError('Transaction reverted');
@@ -726,14 +809,24 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		return toReturn;
 	});
 
-	/**
-	 * Returns the current gas price in wei.
-	 */
-	methods.set('eth_gasPrice', async () => {
-		let price = await fastify.evm.telos.getGasPrice();
-		let priceInt = parseInt(price, 16) * GAS_PRICE_OVERESTIMATE;
-		return isNaN(priceInt) ? null : "0x" + Math.floor(priceInt).toString(16);
-	});
+    /**
+     * Returns the current gas price in wei.
+     */
+    methods.set('eth_gasPrice', async () => {
+        const [cachedData, hash, path] = fastify.cacheManager.getCachedData({
+            method: 'GET',
+            url: 'v1/chain/get_gas_price'
+        } as FastifyRequest);
+        if (cachedData) {
+            return cachedData;
+        } else {
+            let price = await fastify.evm.telos.getGasPrice();
+            let priceInt = parseInt(price, 16) * GAS_PRICE_OVERESTIMATE;
+            const gasPrice = isNaN(priceInt) ? null : "0x" + Math.floor(priceInt).toString(16);
+            fastify.cacheManager.setCachedData(hash, path, gasPrice);
+            return gasPrice;
+        }
+    });
 
 	/**
 	 * Returns the balance of the account of given address.
@@ -795,7 +888,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				account: opts.signer_account,
 				tx: encodedTx,
 				sender: txParams.from,
-			});
+			}, fastify.cachingApi, await makeTrxVars());
 			output = output.replace(/^0x/, '');
 			return "0x" + output;
 		} catch (e) {
@@ -829,7 +922,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				account: opts.signer_account,
 				tx: signedTx,
 				ram_payer: fastify.evm.telos.telosContract,
-			});
+			}, fastify.cachingApi, await makeTrxVars());
 
 			let consoleOutput = rawResponse.telos.processed.action_traces[0].console;
 
@@ -843,12 +936,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					err.errorMessage = `Error: VM Exception while processing transaction: reverted with reason string '${parseRevertReason(output)}'`;
 				} else if (output.startsWith(REVERT_PANIC_SELECTOR)) {
 					err.errorMessage = `Error: VM Exception while processing transaction: reverted with reason string '${parsePanicReason(output)}'`;
-				}				
-				else {
-					// TODO: improve errors in the contract and then use them here... 
-					//   hardhat tests fail because our message from the contract is "One of the actions in this transaction was REVERTed."
-					//   and hardhat is looking for the string `revert` (lower case) when it's doing "expectRevert.unspecified()"
-					//let errors = receipt.errors;
+				} else {
 					// Borrowed message from hardhat node
 					if (receipt.errors.length > 0 && receipt.errors[0].toLowerCase().indexOf('revert') !== -1)
 						err.errorMessage = `Transaction reverted: function selector was not recognized.`;
@@ -864,7 +952,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 			return '0x' + rawResponse.eth.transactionHash;
 		} catch (e) {
-			// TODO: here we probably should not just return null, that causes tests to hang
 			if (e instanceof TransactionError)
 				throw e;
 
@@ -1136,8 +1223,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 							|| blockHash === doc['@raw']['block_hash'] &&
 							log.address.toLowerCase() === address.toLowerCase() &&
 							await hasTopics(log.topics, topics)
-							) 
-						{
+							) {
 							results.push({
 								address: '0x' + log.address,
 								blockHash: '0x' + doc['@raw']['block_hash'],
