@@ -581,6 +581,36 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		}
 	}
 
+	function makeInitialTrace(receipt, adHoc) {
+		let gas = '0x' + (receipt['gasused'] as number).toString(16)
+		let trace: any = {
+			action: {
+				callType: 'call',
+				from: toChecksumAddress(receipt['from']),
+				gas: gas,
+				input: '0x' + receipt.input,
+				to: toChecksumAddress(receipt['to']),
+				value: '0x' + receipt.value
+			},
+			result: {
+				gasUsed: gas,
+				output: '0x' + receipt.output,
+			},
+			subtraces: receipt.itxs.length,
+			traceAddress: [],
+			type: 'call'
+		}
+
+		if (!adHoc) {
+			trace.blockHash = '0x' + receipt['block_hash'];
+			trace.blockNumber = numToHex(receipt['block']);
+			trace.transactionHash = receipt['hash'];
+			trace.transactionPosition = 0;
+		}
+
+		return trace;
+	}
+
 	// https://openethereum.github.io/JSONRPC-trace-module
 	// adHoc is for the Ad-hoc Tracing methods which have a slightly different trace structure than the
 	//   Transaction-Trace Filtering (!adHoc) methods
@@ -606,7 +636,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 		if (!adHoc) {
 			trace.blockHash = '0x' + receipt['block_hash'];
-			trace.blockNumber = receipt['block'];
+			trace.blockNumber = numToHex(receipt['block']);
 			trace.transactionHash = receipt['hash'];
 			trace.transactionPosition = receipt['trx_index'];
 		}
@@ -615,7 +645,11 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	}
 
 	function makeTraces(receipt, adHoc) {
-		const results = [];
+		// TODO: include the main transaction as the 0th trace per:
+		//    https://github.com/ledgerwatch/erigon/issues/1119#issuecomment-693722124
+		const results = [
+			makeInitialTrace(receipt, adHoc)
+		];
 		for (const itx of receipt['itxs']) {
 			results.push(makeTrace(receipt, itx, adHoc));
 		}
@@ -1450,7 +1484,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			throw new Error("trace_replayBlockTransactions only supports the \"trace\" type of trace (not vmTrace or stateDiff");
 
 		const blockNumber = parseInt(await toBlockNumber(block), 16);
-		const receipts = await getReceiptsByTerm("@raw.block", blockNumber);
+		const receiptHits = await getReceiptsByTerm("@raw.block", blockNumber);
+		const receipts = receiptHits.map(r => r._source["@raw"]);
 		const sortedReceipts = receipts.sort((a, b) => {
 			return a.trx_index - b.trx_index;
 		})
@@ -1467,7 +1502,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 	methods.set('trace_block', async ([block]) => {
 		const blockNumber = parseInt(await toBlockNumber(block), 16);
-		const receipts = await getReceiptsByTerm("@raw.block", blockNumber);
+		const receiptHits = await getReceiptsByTerm("@raw.block", blockNumber);
+		const receipts = receiptHits.map(r => r._source["@raw"]);
 		const sortedReceipts = receipts.sort((a, b) => {
 			return a.trx_index - b.trx_index;
 		})
