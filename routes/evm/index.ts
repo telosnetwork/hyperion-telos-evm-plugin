@@ -486,7 +486,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		const trxs = [];
 		//Logger.log(`Reconstructing block from receipts: ${JSON.stringify(receipts)}`)	
 		for (const receiptDoc of receipts) {
-			const {v, r, s} = getVRS(receiptDoc);
+			const {v, r, s} = getVRS(receiptDoc._source);
 			const receipt = receiptDoc._source['@raw'];
 
 			gasLimit += receipt["gas_limit"];
