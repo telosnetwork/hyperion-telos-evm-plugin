@@ -13,6 +13,7 @@ import {hLog} from "../../../helpers/common_functions";
 const BN = require('bn.js');
 const createKeccakHash = require('keccak');
 const {TelosEvmApi} = require('@telosnetwork/telosevm-js');
+const {Signature} = require('eosjs-ecc');
 
 const RECEIPT_LOG_START = "RCPT{{";
 const RECEIPT_LOG_END = "}}RCPT";
@@ -67,6 +68,7 @@ export default class TelosEvm extends HyperionPlugin {
     pluginConfig: TelosEvmConfig;
 
     constructor(config: TelosEvmConfig) {
+        // TODO: some setTimeout that will send the doresources call?
         super(config);
         this.debug = config.debug
         if (this.baseConfig) {
@@ -332,6 +334,7 @@ export default class TelosEvm extends HyperionPlugin {
                             txBody["s"] = tx.s;
                         } else {
                             txBody["from"] = toChecksumAddress(data.sender).toLowerCase();
+                            // TODO: set these from the Telos signature
                             //txBody["v"] = null;
                             //txBody["r"] = null;
                             //txBody["s"] = null;

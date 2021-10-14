@@ -7,9 +7,10 @@ import {PushTransactionArgs} from 'eosjs/dist/eosjs-rpc-interfaces'
 import moment from "moment";
 import {Api} from 'eosjs'
 import {JsSignatureProvider} from 'eosjs/dist/eosjs-jssig'
-import {PrivateKey} from 'eosjs-ecc'
+import {PrivateKey,Signature} from 'eosjs-ecc'
 import {TransactionVars} from '@telosnetwork/telosevm-js'
 import {handleChainApiRedirect} from "../../../../../api/helpers/functions";
+import {isNil} from "lodash";
 
 
 const BN = require('bn.js');
@@ -165,6 +166,25 @@ function jsonRPC2Error(reply: FastifyReply, type: string, requestId: string, mes
 			message
 		}
 	};
+}
+
+function getVRS(receiptDoc) {
+	let v;
+	let r;
+	let s;
+	let receipt = receiptDoc["@raw"];
+	if (isNil(receipt.v))  {
+		let sig = Signature.fromString(receiptDoc.signatures[0]);
+		v = `0x${sig.i.toString(16)}`;
+		r = `0x${sig.r.toHex()}`;
+		s = `0x${sig.s.toHex()}`;
+	} else {
+		v = "0x" + receipt.v;
+		r = "0x" + receipt.v;
+		s = "0x" + receipt.s;
+	}
+
+	return {v,r,s};
 }
 
 interface EthLog {
@@ -466,6 +486,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		const trxs = [];
 		//Logger.log(`Reconstructing block from receipts: ${JSON.stringify(receipts)}`)	
 		for (const receiptDoc of receipts) {
+			const {v, r, s} = getVRS(receiptDoc);
 			const receipt = receiptDoc._source['@raw'];
 
 			gasLimit += receipt["gas_limit"];
@@ -501,7 +522,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					nonce: "0x" + Number(receipt['nonce']).toString(16),
 					to: toChecksumAddress(receipt['to']),
 					transactionIndex: "0x" + Number(receipt['trx_index']).toString(16),
-					value: "0x" + Number(receipt['value']).toString(16)
+					value: "0x" + Number(receipt['value']).toString(16),
+					v, r, s
 				});
 			}
 		}
@@ -1047,6 +1069,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		// lookup raw action
 		const receiptAction = await searchActionByHash(trxHash);
 		if (!receiptAction) return null;
+		const {v, r, s} = getVRS(receiptAction);
 		const receipt = receiptAction['@raw'];
 
 		// lookup receipt delta
@@ -1068,9 +1091,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			to: toChecksumAddress(receipt['to']),
 			transactionIndex: numToHex(receipt['trx_index']),
 			value: numToHex(receipt['value']),
-			v: '0x' + receipt['v'],
-			r: '0x' + receipt['r'],
-			s: '0x' + receipt['s'],
+			v, r, s
 		};
 	});
 
