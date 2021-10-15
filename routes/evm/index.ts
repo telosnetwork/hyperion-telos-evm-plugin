@@ -588,7 +588,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				callType: 'call',
 				from: toChecksumAddress(receipt['from']),
 				gas: gas,
-				input: '0x' + receipt.input,
+				input: receipt.input_data,
 				to: toChecksumAddress(receipt['to']),
 				value: '0x' + receipt.value
 			},
@@ -603,9 +603,9 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 		if (!adHoc) {
 			trace.blockHash = '0x' + receipt['block_hash'];
-			trace.blockNumber = numToHex(receipt['block']);
+			trace.blockNumber = receipt['block'];
 			trace.transactionHash = receipt['hash'];
-			trace.transactionPosition = 0;
+			trace.transactionPosition = receipt['trx_index'];
 		}
 
 		return trace;
@@ -636,7 +636,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 		if (!adHoc) {
 			trace.blockHash = '0x' + receipt['block_hash'];
-			trace.blockNumber = numToHex(receipt['block']);
+			trace.blockNumber = receipt['block'];
 			trace.transactionHash = receipt['hash'];
 			trace.transactionPosition = receipt['trx_index'];
 		}
@@ -1507,14 +1507,13 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		const sortedReceipts = receipts.sort((a, b) => {
 			return a.trx_index - b.trx_index;
 		})
-		let transactions = []
+		let traces = []
 		for (let i = 0; i < sortedReceipts.length; i++) {
 			let receipt = sortedReceipts[i];
-			let trx: any = makeTraces(receipt, false);
-			trx.transactionHash = receipt.hash;
-			transactions.push(trx);
+			let trxTraces: any = makeTraces(receipt, false);
+			traces.concat(traces, trxTraces);
 		}
-		return transactions;
+		return traces;
 	});
 
 
