@@ -1,6 +1,7 @@
 import {FastifyInstance, FastifyReply, FastifyRequest} from "fastify";
 import {TelosEvmConfig} from "../../index";
 import Bloom from "../../bloom";
+import {toChecksumAddress} from "../../utils"
 import DebugLogger from "../../debugLogging";
 import {AuthorityProvider, AuthorityProviderArgs, BinaryAbi} from 'eosjs/dist/eosjs-api-interfaces';
 import {PushTransactionArgs} from 'eosjs/dist/eosjs-rpc-interfaces'
@@ -296,27 +297,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
         }
     }
 
-    function toChecksumAddress(address) {
-        if (!address)
-            return address
 
-		address = address.toLowerCase().replace('0x', '')
-		if (address.length != 40)
-			address = address.padStart(40, "0");
-
-		let hash = createKeccakHash('keccak256').update(address).digest('hex')
-		let ret = '0x'
-
-		for (var i = 0; i < address.length; i++) {
-			if (parseInt(hash[i], 16) >= 8) {
-				ret += address[i].toUpperCase()
-			} else {
-				ret += address[i]
-			}
-		}
-
-		return ret
-	}
 
 	async function searchActionByHash(trxHash: string): Promise<any> {
 		Logger.log(`searching action by hash: ${trxHash}`)
@@ -382,7 +363,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					data: log.data,
 					logIndex: numToHex(counter),
 					removed: false,
-					topics: log.topics.map(t => '0x' + t),
+					topics: log.topics.map(t => '0x' + t.padStart(64, '0')),
 					transactionHash: txHash,
 					transactionIndex: txIndex
 				});
