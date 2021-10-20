@@ -728,7 +728,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	 */
 	methods.set('eth_blockNumber', async () => {
 		try {
-			return await getCurrentBlockNumber();
+			return await getCurrentBlockNumber(true);
 		} catch (e) {
 			throw new Error('Request Failed: ' + e.message);
 		}
