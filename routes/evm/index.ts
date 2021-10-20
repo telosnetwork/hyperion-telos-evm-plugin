@@ -487,7 +487,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			}
 			if (receipt['logsBloom']){
 				bloom.or(new Bloom(Buffer.from(receipt['logsBloom'], "hex")));
-				logsBloom = "0x" + bloom.bitvector.toString("hex");
 			}
 			if (!full) {
 				trxs.push(receipt['hash']);
@@ -508,6 +507,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				});
 			}
 		}
+
+		logsBloom = "0x" + bloom.bitvector.toString("hex");
 
 		return Object.assign({}, BLOCK_TEMPLATE, {
 			gasLimit: numToHex(gasLimit),
