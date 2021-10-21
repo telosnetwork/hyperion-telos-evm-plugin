@@ -1,15 +1,17 @@
 import {FastifyInstance, FastifyReply, FastifyRequest} from "fastify";
 import {TelosEvmConfig} from "../../index";
 import Bloom from "../../bloom";
+import {toChecksumAddress} from "../../utils"
 import DebugLogger from "../../debugLogging";
 import {AuthorityProvider, AuthorityProviderArgs, BinaryAbi} from 'eosjs/dist/eosjs-api-interfaces';
 import {PushTransactionArgs} from 'eosjs/dist/eosjs-rpc-interfaces'
 import moment from "moment";
 import {Api} from 'eosjs'
 import {JsSignatureProvider} from 'eosjs/dist/eosjs-jssig'
-import {PrivateKey} from 'eosjs-ecc'
+import {PrivateKey,Signature} from 'eosjs-ecc'
 import {TransactionVars} from '@telosnetwork/telosevm-js'
 import {handleChainApiRedirect} from "../../../../../api/helpers/functions";
+import {isNil} from "lodash";
 
 
 const BN = require('bn.js');
@@ -26,6 +28,7 @@ const REVERT_PANIC_SELECTOR = '0x4e487b71'
 
 const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
 const NULL_HASH = '0x0000000000000000000000000000000000000000000000000000000000000000';
+const EMPTY_LOGS = '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000';
 
 const BLOCK_TEMPLATE = {
 	difficulty: "0x0",
@@ -167,6 +170,25 @@ function jsonRPC2Error(reply: FastifyReply, type: string, requestId: string, mes
 	};
 }
 
+function getVRS(receiptDoc) {
+	let v;
+	let r;
+	let s;
+	let receipt = receiptDoc["@raw"];
+	if (isNil(receipt.v))  {
+		let sig = Signature.fromString(receiptDoc.signatures[0]);
+		v = `0x${sig.i.toString(16)}`;
+		r = `0x${sig.r.toHex()}`;
+		s = `0x${sig.s.toHex()}`;
+	} else {
+		v = "0x" + receipt.v;
+		r = "0x" + receipt.v;
+		s = "0x" + receipt.s;
+	}
+
+	return {v,r,s};
+}
+
 interface EthLog {
     address: string;
     blockHash: string;
@@ -276,27 +298,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
         }
     }
 
-    function toChecksumAddress(address) {
-        if (!address)
-            return address
 
-		address = address.toLowerCase().replace('0x', '')
-		if (address.length != 40)
-			address = address.padStart(40, "0");
-
-		let hash = createKeccakHash('keccak256').update(address).digest('hex')
-		let ret = '0x'
-
-		for (var i = 0; i < address.length; i++) {
-			if (parseInt(hash[i], 16) >= 8) {
-				ret += address[i].toUpperCase()
-			} else {
-				ret += address[i]
-			}
-		}
-
-		return ret
-	}
 
 	async function searchActionByHash(trxHash: string): Promise<any> {
 		Logger.log(`searching action by hash: ${trxHash}`)
@@ -362,7 +364,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					data: log.data,
 					logIndex: numToHex(counter),
 					removed: false,
-					topics: log.topics.map(t => '0x' + t),
+					topics: log.topics.map(t => '0x' + t.padStart(64, '0')),
 					transactionHash: txHash,
 					transactionIndex: txIndex
 				});
@@ -466,6 +468,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		const trxs = [];
 		//Logger.log(`Reconstructing block from receipts: ${JSON.stringify(receipts)}`)	
 		for (const receiptDoc of receipts) {
+			const {v, r, s} = getVRS(receiptDoc._source);
 			const receipt = receiptDoc._source['@raw'];
 
 			gasLimit += receipt["gas_limit"];
@@ -485,7 +488,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			}
 			if (receipt['logsBloom']){
 				bloom.or(new Bloom(Buffer.from(receipt['logsBloom'], "hex")));
-				logsBloom = "0x" + bloom.bitvector.toString("hex");
 			}
 			if (!full) {
 				trxs.push(receipt['hash']);
@@ -501,10 +503,13 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					nonce: "0x" + Number(receipt['nonce']).toString(16),
 					to: toChecksumAddress(receipt['to']),
 					transactionIndex: "0x" + Number(receipt['trx_index']).toString(16),
-					value: "0x" + Number(receipt['value']).toString(16)
+					value: "0x" + Number(receipt['value']).toString(16),
+					v, r, s
 				});
 			}
 		}
+
+		logsBloom = "0x" + bloom.bitvector.toString("hex");
 
 		return Object.assign({}, BLOCK_TEMPLATE, {
 			gasLimit: numToHex(gasLimit),
@@ -559,6 +564,36 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		}
 	}
 
+	function makeInitialTrace(receipt, adHoc) {
+		let gas = '0x' + (receipt['gasused'] as number).toString(16)
+		let trace: any = {
+			action: {
+				callType: 'call',
+				from: toChecksumAddress(receipt['from']),
+				gas: gas,
+				input: receipt.input_data,
+				to: toChecksumAddress(receipt['to']),
+				value: '0x' + receipt.value
+			},
+			result: {
+				gasUsed: gas,
+				output: '0x' + receipt.output,
+			},
+			subtraces: receipt.itxs.length,
+			traceAddress: [],
+			type: 'call'
+		}
+
+		if (!adHoc) {
+			trace.blockHash = '0x' + receipt['block_hash'];
+			trace.blockNumber = receipt['block'];
+			trace.transactionHash = receipt['hash'];
+			trace.transactionPosition = receipt['trx_index'];
+		}
+
+		return trace;
+	}
+
 	// https://openethereum.github.io/JSONRPC-trace-module
 	// adHoc is for the Ad-hoc Tracing methods which have a slightly different trace structure than the
 	//   Transaction-Trace Filtering (!adHoc) methods
@@ -593,7 +628,11 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	}
 
 	function makeTraces(receipt, adHoc) {
-		const results = [];
+		// TODO: include the main transaction as the 0th trace per:
+		//    https://github.com/ledgerwatch/erigon/issues/1119#issuecomment-693722124
+		const results = [
+			makeInitialTrace(receipt, adHoc)
+		];
 		for (const itx of receipt['itxs']) {
 			results.push(makeTrace(receipt, itx, adHoc));
 		}
@@ -689,7 +728,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	 */
 	methods.set('eth_blockNumber', async () => {
 		try {
-			return await getCurrentBlockNumber();
+			return await getCurrentBlockNumber(true);
 		} catch (e) {
 			throw new Error('Request Failed: ' + e.message);
 		}
@@ -1008,7 +1047,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			if (receipt['createdaddr']) {
 				_contractAddr = '0x' + receipt['createdaddr'];
 			}
-			let _logsBloom = null;
+			let _logsBloom = EMPTY_LOGS;
 			if (receipt['logsBloom']) {
 				_logsBloom = '0x' + receipt['logsBloom'];
 			}
@@ -1047,6 +1086,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		// lookup raw action
 		const receiptAction = await searchActionByHash(trxHash);
 		if (!receiptAction) return null;
+		const {v, r, s} = getVRS(receiptAction);
 		const receipt = receiptAction['@raw'];
 
 		// lookup receipt delta
@@ -1068,9 +1108,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			to: toChecksumAddress(receipt['to']),
 			transactionIndex: numToHex(receipt['trx_index']),
 			value: numToHex(receipt['value']),
-			v: '0x' + receipt['v'],
-			r: '0x' + receipt['r'],
-			s: '0x' + receipt['s'],
+			v, r, s
 		};
 	});
 
@@ -1429,7 +1467,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			throw new Error("trace_replayBlockTransactions only supports the \"trace\" type of trace (not vmTrace or stateDiff");
 
 		const blockNumber = parseInt(await toBlockNumber(block), 16);
-		const receipts = await getReceiptsByTerm("@raw.block", blockNumber);
+		const receiptHits = await getReceiptsByTerm("@raw.block", blockNumber);
+		const receipts = receiptHits.map(r => r._source["@raw"]);
 		const sortedReceipts = receipts.sort((a, b) => {
 			return a.trx_index - b.trx_index;
 		})
@@ -1446,18 +1485,18 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 	methods.set('trace_block', async ([block]) => {
 		const blockNumber = parseInt(await toBlockNumber(block), 16);
-		const receipts = await getReceiptsByTerm("@raw.block", blockNumber);
+		const receiptHits = await getReceiptsByTerm("@raw.block", blockNumber);
+		const receipts = receiptHits.map(r => r._source["@raw"]);
 		const sortedReceipts = receipts.sort((a, b) => {
 			return a.trx_index - b.trx_index;
 		})
-		let transactions = []
+		let traces = []
 		for (let i = 0; i < sortedReceipts.length; i++) {
 			let receipt = sortedReceipts[i];
-			let trx: any = makeTraces(receipt, false);
-			trx.transactionHash = receipt.hash;
-			transactions.push(trx);
+			let trxTraces: any = makeTraces(receipt, false);
+			traces.concat(traces, trxTraces);
 		}
-		return transactions;
+		return traces;
 	});
 
 

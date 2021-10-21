@@ -9,10 +9,13 @@ import {HyperionAction} from "../../../interfaces/hyperion-action";
 import {HyperionDelta} from "../../../interfaces/hyperion-delta";
 import Bloom from "./bloom";
 import {hLog} from "../../../helpers/common_functions";
+import {toChecksumAddress} from "./utils"
+
 
 const BN = require('bn.js');
 const createKeccakHash = require('keccak');
 const {TelosEvmApi} = require('@telosnetwork/telosevm-js');
+const {Signature} = require('eosjs-ecc');
 
 const RECEIPT_LOG_START = "RCPT{{";
 const RECEIPT_LOG_END = "}}RCPT";
@@ -26,28 +29,6 @@ export interface TelosEvmConfig {
     }
     chainId: number;
     debug: boolean;
-}
-
-function toChecksumAddress(address: String) {
-    if (!address)
-        return address
-
-    address = address.toLowerCase().replace('0x', '')
-    if (address.length != 40)
-        address = address.padStart(40, "0");
-
-    let hash = createKeccakHash('keccak256').update(address).digest('hex')
-    let ret = '0x'
-
-    for (var i = 0; i < address.length; i++) {
-        if (parseInt(hash[i], 16) >= 8) {
-            ret += address[i].toUpperCase()
-        } else {
-            ret += address[i]
-        }
-    }
-
-    return ret
 }
 
 export default class TelosEvm extends HyperionPlugin {
@@ -67,6 +48,7 @@ export default class TelosEvm extends HyperionPlugin {
     pluginConfig: TelosEvmConfig;
 
     constructor(config: TelosEvmConfig) {
+        // TODO: some setTimeout that will send the doresources call?
         super(config);
         this.debug = config.debug
         if (this.baseConfig) {
@@ -332,6 +314,7 @@ export default class TelosEvm extends HyperionPlugin {
                             txBody["s"] = tx.s;
                         } else {
                             txBody["from"] = toChecksumAddress(data.sender).toLowerCase();
+                            // TODO: set these from the Telos signature
                             //txBody["v"] = null;
                             //txBody["r"] = null;
                             //txBody["s"] = null;
@@ -342,12 +325,15 @@ export default class TelosEvm extends HyperionPlugin {
                             if (txBody['logs'].length === 0) {
                                 delete txBody['logs'];
                             } else {
-                                console.log('------- LOGS -----------');
-                                console.log(txBody['logs']);
+                                //console.log('------- LOGS -----------');
+                                //console.log(txBody['logs']);
                                 const bloom = new Bloom();
-                                for (const topic of txBody['logs'][0]['topics'])
-                                    bloom.add(Buffer.from(topic, 'hex'));
-                                bloom.add(Buffer.from(txBody['logs'][0]['address'], 'hex'));
+                                for (const log of txBody['logs']) {
+                                    bloom.add(Buffer.from(toChecksumAddress(log['address']), 'hex'));
+                                    for (const topic of log.topics)
+                                        bloom.add(Buffer.from(topic.padStart(64, '0'), 'hex'));
+                                }
+
                                 txBody['logsBloom'] = bloom.bitvector.toString('hex');
                             }
                         }
@@ -357,8 +343,8 @@ export default class TelosEvm extends HyperionPlugin {
                             if (txBody['errors'].length === 0) {
                                 delete txBody['errors'];
                             } else {
-                                console.log('------- ERRORS -----------');
-                                console.log(txBody['errors'])
+                                //console.log('------- ERRORS -----------');
+                                //console.log(txBody['errors'])
                             }
                         }
 
@@ -369,8 +355,6 @@ export default class TelosEvm extends HyperionPlugin {
                         action['@raw'] = txBody;
 
                         this.logDebug(`txBody: ${JSON.stringify(txBody)}`)
-                        // TODO: don't delete data?  Or just store it differently so it shows up under eosio.evm account still
-                        //delete action['act']['data'];
                         delete action['console'];
                     } catch (e) {
                         console.log(e);
