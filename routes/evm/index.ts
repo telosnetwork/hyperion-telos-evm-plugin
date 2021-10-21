@@ -361,7 +361,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					address: toChecksumAddress(log.address),
 					blockHash: blHash,
 					blockNumber: blNumber,
-					data: log.data,
+					data: "0x" + log.data,
 					logIndex: numToHex(counter),
 					removed: false,
 					topics: log.topics.map(t => '0x' + t.padStart(64, '0')),
@@ -583,6 +583,9 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			traceAddress: [],
 			type: 'call'
 		}
+
+		if (receipt.errors.length > 0)
+			trace.error = receipt.errors[0];
 
 		if (!adHoc) {
 			trace.blockHash = '0x' + receipt['block_hash'];
