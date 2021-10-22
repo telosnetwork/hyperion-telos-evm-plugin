@@ -21,3 +21,7 @@ export function toChecksumAddress(address) {
 
     return ret
 }
+
+export function blockHexToHash(blockHex: string) {
+    return `0x${createKeccakHash('keccak256').update(blockHex.replace(/^0x/, '')).digest('hex')}`;
+}

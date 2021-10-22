@@ -1,7 +1,7 @@
 import {FastifyInstance, FastifyReply, FastifyRequest} from "fastify";
 import {TelosEvmConfig} from "../../index";
 import Bloom from "../../bloom";
-import {toChecksumAddress} from "../../utils"
+import {toChecksumAddress, blockHexToHash} from "../../utils"
 import DebugLogger from "../../debugLogging";
 import {AuthorityProvider, AuthorityProviderArgs, BinaryAbi} from 'eosjs/dist/eosjs-api-interfaces';
 import {PushTransactionArgs} from 'eosjs/dist/eosjs-rpc-interfaces'
@@ -395,18 +395,23 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			});
 			//Logger.log(`searching action by hash: ${trxHash} got result: \n${JSON.stringify(results?.body)}`)
 			let blockDelta = results?.body?.hits?.hits[0]?._source;
-			if (!blockDelta) {
-				return null;
-			}
-
-			let timestamp = new Date(blockDelta['@timestamp'] + 'Z').getTime() / 1000 | 0;
 			let blockNumberHex = '0x' + blockNumber.toString(16);
+			let timestamp;
+			let blockHash;
+			if (blockDelta) {
+				timestamp = new Date(blockDelta['@timestamp'] + 'Z').getTime() / 1000 | 0;
+				blockHash = "0x" + blockDelta["@evmBlockHash"];
+			} else {
+				// not found in the index, do our best!
+				timestamp = 0;
+				blockHash = blockHexToHash(blockNumberHex);
+			}
 
 			return Object.assign({}, BLOCK_TEMPLATE, {
 				gasLimit: "0x0",
 				gasUsed: "0x0",
 				parentHash: getParentBlockHash(blockNumberHex),
-				hash: "0x" + blockDelta["@evmBlockHash"],
+				hash: blockHash,
 				logsBloom: "0x" + new Bloom().bitvector.toString("hex"),
 				number: blockNumberHex,
 				timestamp: "0x" + timestamp?.toString(16),
@@ -536,15 +541,34 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 	async function getCurrentBlockNumber(indexed: boolean = false) {
 		if (!indexed) {
+			const [cachedData, hash, path] = fastify.cacheManager.getCachedData({
+				method: 'GET',
+				url: 'v1/chain/last_onchain_block'
+			} as FastifyRequest);
+
+			if (cachedData) {
+				return cachedData;
+			}
+
 			const global = await fastify.eosjs.rpc.get_table_rows({
 				code: "eosio",
 				scope: "eosio",
 				table: "global",
 				json: true
 			});
-			const head_block_num = parseInt(global.rows[0].block_num, 10);
-			return '0x' + head_block_num.toString(16);
+			const blockNum = parseInt(global.rows[0].block_num, 10);
+			const lastOnchainBlock = '0x' + blockNum.toString(16);
+			fastify.cacheManager.setCachedData(hash, path, lastOnchainBlock);
+			return lastOnchainBlock;
 		} else {
+			const [cachedData, hash, path] = fastify.cacheManager.getCachedData({
+				method: 'GET',
+				url: 'v1/chain/last_indexed_block'
+			} as FastifyRequest);
+
+			if (cachedData)
+				return cachedData;
+
 			const results = await fastify.elastic.search({
 				index: `${fastify.manager.chain}-delta-*`,
 				body: {
@@ -560,7 +584,9 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					}
 				}
 			});
-			return "0x" + Number(results?.body?.hits?.hits[0]?._source["@global"].block_num).toString(16);
+			let currentBlockNumber = "0x" + Number(results?.body?.hits?.hits[0]?._source["@global"].block_num).toString(16);
+			fastify.cacheManager.setCachedData(hash, path, currentBlockNumber);
+			return currentBlockNumber;
 		}
 	}
 
@@ -665,10 +691,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		} else {
 			return null;
 		}
-	}
-
-	function blockHexToHash(blockHex: string) {
-		return `0x${createKeccakHash('keccak256').update(blockHex.replace(/^0x/, '')).digest('hex')}`;
 	}
 
 	async function toBlockNumber(blockParam: string) {
@@ -1563,17 +1585,15 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				 return { id, jsonrpc, result };
 			 } catch (e) {
 				 if (e instanceof TransactionError) {
-					 Logger.log(`VM execution error, reverted: ${e.errorMessage} | Method: ${method} | RESP: ${JSON.stringify(params, null, 2)}`);
 					 let code = e.code || 3;
 					 let message = e.errorMessage;
 					 let data = e.data;
 					 let error = { code, message, data };
-					 Logger.log(`REQ: ${JSON.stringify(params)} | ERROR RESP: ${JSON.stringify(error, null, 2)}`);
+					 Logger.log(`ERROR | Method: ${method} | VM execution error, reverted with message: ${e.errorMessage} \n\n REQ: ${JSON.stringify(params, null, 2)}\n\n ERROR RESP: ${JSON.stringify(error, null, 2)}`);
 					 return { id, jsonrpc, error };
 				 }
 
-				 Logger.log(`ErrorMessage: ${e.message} | Method: ${method} | RESP: ${JSON.stringify(params, null, 2)}`);
-				 Logger.log(JSON.stringify(e, null, 2));
+				 Logger.log(`Error: ${JSON.stringify(e, null, 2)} | Method: ${method} | REQ: ${JSON.stringify(params, null, 2)}`);
 				 return jsonRPC2Error(reply, "InternalError", id, e.message);
 			 }
 		 } else {

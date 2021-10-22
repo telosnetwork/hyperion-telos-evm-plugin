@@ -10,7 +10,7 @@ Hyperion History v3.3.5+ required
 ./hpm enable telos-evm
 ```
 
-Required Config on chain.config.json
+Required plugin config on chain.config.json
 
 ```json
 {
@@ -28,6 +28,19 @@ Required Config on chain.config.json
     }
   }
 }
+```
+
+And in the API section of chain.config.json
+```json
+    "v1_chain_cache": [
+        {"path": "get_block", "ttl": 3000},
+        {"path": "get_info", "ttl": 500},
+        {"path": "get_gas_price", "ttl": 500},
+        {"path": "last_onchain_block", "ttl": 500},
+        {"path": "last_indexed_block", "ttl": 500}
+    ],
+    "rate_limit_rpm": 100000,
+    "rate_limit_allow": ["<IP OF EXPLORER OR OTHERS>"]
 ```
 
 ### Implemented Routes
