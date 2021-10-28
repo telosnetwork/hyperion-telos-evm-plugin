@@ -372,7 +372,8 @@ export default class TelosEvm extends HyperionPlugin {
             ethPrivateKeys: [],
             fetch: fetch,
             telosContract: this.pluginConfig.contracts.main,
-            telosPrivateKeys: [this.pluginConfig.signer_key]
+            telosPrivateKeys: [this.pluginConfig.signer_key],
+            signingPermission: this.pluginConfig.signer_permission
         }));
         server.evm.setDebug(this.pluginConfig.debug);
         server.register(autoLoad, {

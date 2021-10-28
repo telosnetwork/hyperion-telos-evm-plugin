@@ -610,7 +610,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			type: 'call'
 		}
 
-		if (receipt.errors.length > 0)
+		if (receipt?.errors?.length > 0)
 			trace.error = receipt.errors[0];
 
 		if (!adHoc) {
@@ -1002,10 +1002,10 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					err.errorMessage = `Error: VM Exception while processing transaction: reverted with reason string '${parsePanicReason(output)}'`;
 				} else {
 					// Borrowed message from hardhat node
-					if (receipt.errors.length > 0 && receipt.errors[0].toLowerCase().indexOf('revert') !== -1)
+					if (receipt?.errors?.length > 0 && receipt.errors[0].toLowerCase().indexOf('revert') !== -1)
 						err.errorMessage = `Transaction reverted: function selector was not recognized.`;
 					else
-						err.errorMessage = `Error: VM Exception while processing transaction: ${receipt.errors[0]}`;
+						err.errorMessage = `Error: VM Exception while processing transaction: ${receipt?.errors[0]}`;
 				}
 
 				err.data = {
