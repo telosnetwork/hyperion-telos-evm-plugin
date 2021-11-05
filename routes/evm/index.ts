@@ -170,25 +170,6 @@ function jsonRPC2Error(reply: FastifyReply, type: string, requestId: string, mes
 	};
 }
 
-function getVRS(receiptDoc) {
-	let v;
-	let r;
-	let s;
-	let receipt = receiptDoc["@raw"];
-	if (isNil(receipt.v))  {
-		let sig = Signature.fromString(receiptDoc.signatures[0]);
-		v = `0x${sig.i.toString(16)}`;
-		r = `0x${sig.r.toHex()}`;
-		s = `0x${sig.s.toHex()}`;
-	} else {
-		v = "0x" + receipt.v;
-		r = "0x" + receipt.v;
-		s = "0x" + receipt.s;
-	}
-
-	return {v,r,s};
-}
-
 interface EthLog {
     address: string;
     blockHash: string;
@@ -298,7 +279,52 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
         }
     }
 
+	async function getSignature(telosTrxId: string): Promise<any> {
+		Logger.log(`searching by telosTrxId: ${telosTrxId}`)
+		try {
+			const results = await fastify.elastic.search({
+				index: `${fastify.manager.chain}-action-*`,
+				body: {
+					size: 1,
+					query: {
+						bool: {
+							must: [{ term: { "trx_id": telosTrxId, "action_ordinal": 1} }]
+						}
+					}
+				}
+			});
+			//Logger.log(`searching action by hash: ${trxHash} got result: \n${JSON.stringify(results?.body)}`)
+			return results?.body?.hits?.hits[0]?._source.signatures[0];
+		} catch (e) {
+			console.log(e);
+			return null;
+		}
+	}
 
+	async function getVRS(receiptDoc): Promise<any> {
+		let v;
+		let r;
+		let s;
+		let sigString;
+		let receipt = receiptDoc["@raw"];
+		if (receiptDoc.signatures.length <= 0) {
+			sigString = receiptDoc.signatures[0];
+		} else {
+			sigString = await getSignature(receiptDoc.trx_id);
+		}
+		if (isNil(receipt.v))  {
+			let sig = Signature.fromString(sigString);
+			v = `0x${sig.i.toString(16)}`;
+			r = `0x${sig.r.toHex()}`;
+			s = `0x${sig.s.toHex()}`;
+		} else {
+			v = "0x" + receipt.v;
+			r = "0x" + receipt.v;
+			s = "0x" + receipt.s;
+		}
+
+		return {v,r,s};
+	}
 
 	async function searchActionByHash(trxHash: string): Promise<any> {
 		Logger.log(`searching action by hash: ${trxHash}`)
@@ -473,7 +499,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		const trxs = [];
 		//Logger.log(`Reconstructing block from receipts: ${JSON.stringify(receipts)}`)	
 		for (const receiptDoc of receipts) {
-			const {v, r, s} = getVRS(receiptDoc._source);
+			const {v, r, s} = await getVRS(receiptDoc._source);
 			const receipt = receiptDoc._source['@raw'];
 
 			gasLimit += receipt["gas_limit"];
@@ -1111,7 +1137,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		// lookup raw action
 		const receiptAction = await searchActionByHash(trxHash);
 		if (!receiptAction) return null;
-		const {v, r, s} = getVRS(receiptAction);
+		const {v, r, s} = await getVRS(receiptAction);
 		const receipt = receiptAction['@raw'];
 
 		// lookup receipt delta
@@ -1580,7 +1606,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 				 const duration = ((Number(process.hrtime.bigint()) - Number(tRef)) / 1000).toFixed(3);
 
-				 Logger.log(`${new Date().toISOString()} - ${duration} μs - ${_ip} (${_usage}/${_limit}) - ${origin} - ${method}`);
+				 console.log(`RPCREQUEST: ${new Date().toISOString()} - ${duration} μs - ${_ip} (${_usage}/${_limit}) - ${origin} - ${method}`);
 				 Logger.log(`REQ: ${JSON.stringify(params)} | RESP: ${typeof result == 'object' ? JSON.stringify(result, null, 2) : result}`);
 				 return { id, jsonrpc, result };
 			 } catch (e) {
@@ -1589,15 +1615,15 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					 let message = e.errorMessage;
 					 let data = e.data;
 					 let error = { code, message, data };
-					 Logger.log(`ERROR | Method: ${method} | VM execution error, reverted with message: ${e.errorMessage} \n\n REQ: ${JSON.stringify(params, null, 2)}\n\n ERROR RESP: ${JSON.stringify(error, null, 2)}`);
+					 console.log(`RPCREVERT: ${new Date().toISOString()} - | Method: ${method} | VM execution error, reverted with message: ${e.errorMessage} \n\n REQ: ${JSON.stringify(params, null, 2)}\n\n ERROR RESP: ${JSON.stringify(error, null, 2)}`);
 					 return { id, jsonrpc, error };
 				 }
 
-				 Logger.log(`Error: ${JSON.stringify(e, null, 2)} | Method: ${method} | REQ: ${JSON.stringify(params, null, 2)}`);
+				 console.log(`RPCERROR: ${new Date().toISOString()} - ${JSON.stringify(e, null, 2)} | Method: ${method} | REQ: ${JSON.stringify(params, null, 2)}`);
 				 return jsonRPC2Error(reply, "InternalError", id, e.message);
 			 }
 		 } else {
-			 Logger.log(`MethodNotFound: ${method}`);
+			 console.log(`METHODNOTFOUND: ${new Date().toISOString()} - ${method}`);
 			 return jsonRPC2Error(reply, 'MethodNotFound', id, `Invalid method: ${method}`);
 		 }
 	 }
@@ -1628,7 +1654,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			const _usage = reply.getHeader('x-ratelimit-remaining');
 			const _limit = reply.getHeader('x-ratelimit-limit');
 			const _ip = request.headers['x-real-ip'];
-			Logger.log(`${new Date().toISOString()} - ${duration} μs - ${_ip} (${_usage}/${_limit}) - ${origin} - BATCH OF ${responses.length}`);
+			console.log(`RPCREQUESTBATCH: ${new Date().toISOString()} - ${duration} μs - ${_ip} (${_usage}/${_limit}) - ${origin} - BATCH OF ${responses.length}`);
 			return responses;
 		} else {
 			return await doRpcMethod(request.body, request, reply);
