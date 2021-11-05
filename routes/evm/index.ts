@@ -288,7 +288,13 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					size: 1,
 					query: {
 						bool: {
-							must: [{ term: { "trx_id": telosTrxId, "action_ordinal": 1} }]
+							must: [
+								{
+									term: { "trx_id": telosTrxId }
+								},{
+									term: { "action_ordinal": 1 }
+								}
+							]
 						}
 					}
 				}
@@ -307,7 +313,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		let s;
 		let sigString;
 		let receipt = receiptDoc["@raw"];
-		if (receiptDoc.signatures.length <= 0) {
+		if (receiptDoc?.signatures?.length > 0) {
 			sigString = receiptDoc.signatures[0];
 		} else {
 			sigString = await getSignature(receiptDoc.trx_id);
