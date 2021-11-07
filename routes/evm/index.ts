@@ -168,6 +168,7 @@ function jsonRPC2Error(reply: FastifyReply, type: string, requestId: string, mes
 			message
 		}
 	};
+	return errorResponse;
 }
 
 interface EthLog {
