@@ -853,6 +853,15 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			txParams.value = isNaN(intValue) ? 0 : intValue;
 		}
 
+		try {
+			// this throws if account not found
+			 await fastify.evm.telos.getEthAccount(txParams.from.toLowerCase());
+		} catch (e) {
+			let err = new TransactionError('Insufficient funds');
+			err.errorMessage = 'The sender address has a zero balance';
+			throw err;
+		}
+
 		const encodedTx = await fastify.evm.createEthTx({
 			...txParams,
 			sender: txParams.from,
