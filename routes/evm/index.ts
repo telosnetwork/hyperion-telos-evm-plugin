@@ -1623,7 +1623,12 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				 }
 				 const _usage = reply.getHeader('x-ratelimit-remaining');
 				 const _limit = reply.getHeader('x-ratelimit-limit');
-				 const _ip = request.headers['x-real-ip'];
+				 let _ip = request.headers['x-forwarded-for'] || '';
+				 if (Array.isArray(_ip))
+					 _ip = _ip[0] || ''
+
+				 if (_ip.includes(','))
+					 _ip = _ip.substr(0, _ip.indexOf(','));
 
 				 const duration = ((Number(process.hrtime.bigint()) - Number(tRef)) / 1000).toFixed(3);
 
@@ -1674,7 +1679,13 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			const duration = ((Number(process.hrtime.bigint()) - Number(tRef)) / 1000).toFixed(3);
 			const _usage = reply.getHeader('x-ratelimit-remaining');
 			const _limit = reply.getHeader('x-ratelimit-limit');
-			const _ip = request.headers['x-real-ip'];
+			let _ip = request.headers['x-forwarded-for'] || '';
+			if (Array.isArray(_ip))
+				_ip = _ip[0] || ''
+
+			if (_ip.includes(','))
+				_ip = _ip.substr(0, _ip.indexOf(','));
+
 			console.log(`RPCREQUESTBATCH: ${new Date().toISOString()} - ${duration} μs - ${_ip} (${_usage}/${_limit}) - ${origin} - BATCH OF ${responses.length}`);
 			return responses;
 		} else {
