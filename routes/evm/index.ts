@@ -1596,7 +1596,12 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	};
 
 	 async function doRpcMethod(jsonRpcRequest: any, request: FastifyRequest, reply: FastifyReply) {
-		 const { jsonrpc, id, method, params } = jsonRpcRequest;
+		 let { jsonrpc, id, method, params } = jsonRpcRequest;
+
+		 // if jsonrpc not set, assume 2.0 as there are some clients which leave it out
+		 if (!jsonrpc)
+			 jsonrpc = "2.0"
+
 		 if (jsonrpc !== "2.0") {
 			 Logger.log(`Got invalid jsonrpc, request.body was: ${JSON.stringify(request.body, null, 4)}`);
 			 return jsonRPC2Error(reply, "InvalidRequest", id, "Invalid JSON RPC");
