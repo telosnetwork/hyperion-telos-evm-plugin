@@ -1653,7 +1653,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					 let message = e?.json?.error?.details[0]?.message;
 
 					 if (message.startsWith(EOSIO_ASSERTION_PREFIX))
-						 message = message.substr(0, EOSIO_ASSERTION_PREFIX.length);
+						 message = message.substr(EOSIO_ASSERTION_PREFIX.length, message.length + 1);
 
 					 error.message = message;
 				 } else {
