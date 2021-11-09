@@ -26,6 +26,8 @@ const RECEIPT_LOG_END = "}}RCPT";
 const REVERT_FUNCTION_SELECTOR = '0x08c379a0'
 const REVERT_PANIC_SELECTOR = '0x4e487b71'
 
+const EOSIO_ASSERTION_PREFIX = 'assertion failure with message: '
+
 const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
 const NULL_HASH = '0x0000000000000000000000000000000000000000000000000000000000000000';
 const EMPTY_LOGS = '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000';
@@ -1642,12 +1644,24 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					 let message = e.errorMessage;
 					 let data = e.data;
 					 let error = { code, message, data };
-					 console.log(`RPCREVERT: ${new Date().toISOString()} - | Method: ${method} | VM execution error, reverted with message: ${e.errorMessage} \n\n REQ: ${JSON.stringify(params, null, 2)}\n\n ERROR RESP: ${JSON.stringify(error, null, 2)}`);
+					 console.log(`RPCREVERT: ${new Date().toISOString()} - | Method: ${method} | VM execution error, reverted with message: ${e.errorMessage} \n\n REQ: ${JSON.stringify(params)}\n\n ERROR RESP: ${JSON.stringify(error)}`);
 					 return { id, jsonrpc, error };
 				 }
 
-				 console.log(`RPCERROR: ${new Date().toISOString()} - ${JSON.stringify(e, null, 2)} | Method: ${method} | REQ: ${JSON.stringify(params, null, 2)}`);
-				 return jsonRPC2Error(reply, "InternalError", id, e.message);
+				 let error: any = { code: 3 };
+				 if (e?.json?.error?.code === 3050003) {
+					 let message = e?.json?.error?.details[0]?.message;
+
+					 if (message.startsWith(EOSIO_ASSERTION_PREFIX))
+						 message = message.substr(0, EOSIO_ASSERTION_PREFIX.length);
+
+					 error.message = message;
+				 } else {
+					 error.message = e?.message;
+				 }
+
+				 console.log(`RPCERROR: ${new Date().toISOString()} - ${JSON.stringify(e)} | Method: ${method} | REQ: ${JSON.stringify(params)}`);
+				 return { id, jsonrpc, error };
 			 }
 		 } else {
 			 console.log(`METHODNOTFOUND: ${new Date().toISOString()} - ${method}`);
