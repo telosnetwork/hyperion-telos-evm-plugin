@@ -1660,7 +1660,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					 error.message = e?.message;
 				 }
 
-				 console.log(`RPCERROR: ${new Date().toISOString()} - ${JSON.stringify(e)} | Method: ${method} | REQ: ${JSON.stringify(params)}`);
+				 console.log(`RPCERROR: ${new Date().toISOString()} - ${JSON.stringify({error, exception: e})} | Method: ${method} | REQ: ${JSON.stringify(params)}`);
 				 return { id, jsonrpc, error };
 			 }
 		 } else {
