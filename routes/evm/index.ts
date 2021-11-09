@@ -1061,8 +1061,9 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			if (e instanceof TransactionError)
 				throw e;
 
-			console.log(e);
-			return null;
+
+			console.log(`sendRawTransaction error json: ${JSON.stringify(3, null, 4)}`);
+			throw e;
 		}
 	});
 
