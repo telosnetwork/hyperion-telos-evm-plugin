@@ -1622,8 +1622,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 						 origin = request.headers['user-agent'];
 					 }
 				 }
-				 const _usage = reply.getHeader('x-ratelimit-remaining');
-				 const _limit = reply.getHeader('x-ratelimit-limit');
+				 const _usage = parseInt(reply.getHeader('x-ratelimit-remaining'));
+				 const _limit = parseInt(reply.getHeader('x-ratelimit-limit'));
 				 let _ip = request.headers['x-forwarded-for'] || '';
 				 if (Array.isArray(_ip))
 					 _ip = _ip[0] || ''
@@ -1633,7 +1633,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 				 const duration = ((Number(process.hrtime.bigint()) - Number(tRef)) / 1000).toFixed(3);
 
-				 console.log(`RPCREQUEST: ${new Date().toISOString()} - ${duration} μs - ${_ip} (${_usage}/${_limit}) - ${origin} - ${method}`);
+				 console.log(`RPCREQUEST: ${new Date().toISOString()} - ${duration} μs - ${_ip} (${isNaN(_usage) ? 0 : _usage}/${isNaN(_limit) ? 0 : _limit}) - ${origin} - ${method}`);
 				 Logger.log(`REQ: ${JSON.stringify(params)} | RESP: ${typeof result == 'object' ? JSON.stringify(result, null, 2) : result}`);
 				 return { id, jsonrpc, result };
 			 } catch (e) {
