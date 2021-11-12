@@ -323,12 +323,12 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		}
 		if (isNil(receipt.v))  {
 			let sig = Signature.fromString(sigString);
-			v = `0x${sig.i.toString(16)}`;
-			r = `0x${sig.r.toHex()}`;
+			v = `0x${sig.i.toString(16).padStart(64, '0')}`;
+			r = `0x${sig.r.toHex().padStart(64, '0')}`;
 			s = `0x${sig.s.toHex()}`;
 		} else {
 			v = "0x" + receipt.v;
-			r = "0x" + receipt.v;
+			r = "0x" + receipt.r;
 			s = "0x" + receipt.s;
 		}
 
@@ -536,7 +536,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					blockHash: blockHash,
 					blockNumber: blockHex,
 					from: toChecksumAddress(receipt['from']),
-					gas: receipt['gasused'],
+					gas: "0x" + Number(receipt['gasused']).toString(16),
 					gasPrice: "0x" + Number(receipt['charged_gas_price']).toString(16),
 					hash: receipt['hash'],
 					input: receipt['input_data'],
@@ -1307,6 +1307,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		}
 
 		if (topics && topics.length > 0) {
+
+
 			// console.log(`getLogs using topics:\n${topics}`);
 			topics = topics.map(topic => {
 				return topic.startsWith('0x') ? topic.slice(2).toLowerCase() : topic.toLowerCase();
