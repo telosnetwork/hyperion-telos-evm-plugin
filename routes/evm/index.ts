@@ -1281,12 +1281,29 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		}
 
 		if (address) {
-			address = address.toLowerCase();
-			if (address.startsWith('0x')) {
-				address = address.slice(2);
+			if (Array.isArray(address)) {
+				if (address.length > 0) {
+					const nestedOr = {bool: {should: []}};
+
+					address.forEach(addr => {
+						if (!addr)
+							return;
+
+						if (addr.startsWith('0x')) {
+							addr = addr.slice(2);
+						}
+						nestedOr.bool.should.push({term: {"@raw.logs.address": addr.toLowerCase()}})
+					})
+					queryBody.bool.must.push(nestedOr);
+				}
+			} else {
+				address = address.toLowerCase();
+				if (address.startsWith('0x')) {
+					address = address.slice(2);
+				}
+				// console.log(`getLogs using address: ${address}`);
+				queryBody.bool.must.push({term: {"@raw.logs.address": address}})
 			}
-			// console.log(`getLogs using address: ${address}`);
-			queryBody.bool.must.push({ term: { "@raw.logs.address": address } })
 		}
 
 		if (topics && topics.length > 0) {
