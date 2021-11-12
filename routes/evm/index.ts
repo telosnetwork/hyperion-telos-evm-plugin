@@ -1310,9 +1310,13 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			let flatTopics = [];
 			// console.log(`getLogs using topics:\n${topics}`);
 			topics.forEach(topic => {
+				if (!topic)
+					return;
+
 				if (Array.isArray(topic)) {
 					topic.forEach((orTopic) => {
-						flatTopics.push(orTopic.startsWith('0x') ? orTopic.slice(2).toLowerCase() : orTopic.toLowerCase());
+						if (orTopic)
+							flatTopics.push(orTopic.startsWith('0x') ? orTopic.slice(2).toLowerCase() : orTopic.toLowerCase());
 					})
 				} else {
 					return topic.startsWith('0x') ? topic.slice(2).toLowerCase() : topic.toLowerCase();
