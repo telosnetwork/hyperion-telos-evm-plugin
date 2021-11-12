@@ -1307,15 +1307,20 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		}
 
 		if (topics && topics.length > 0) {
-
-
+			let flatTopics = [];
 			// console.log(`getLogs using topics:\n${topics}`);
-			topics = topics.map(topic => {
-				return topic.startsWith('0x') ? topic.slice(2).toLowerCase() : topic.toLowerCase();
+			topics.forEach(topic => {
+				if (Array.isArray(topic)) {
+					topic.forEach((orTopic) => {
+						flatTopics.push(orTopic.startsWith('0x') ? orTopic.slice(2).toLowerCase() : orTopic.toLowerCase());
+					})
+				} else {
+					return topic.startsWith('0x') ? topic.slice(2).toLowerCase() : topic.toLowerCase();
+				}
 			})
 			queryBody.bool.must.push({
 				terms: {
-					"@raw.logs.topics": topics
+					"@raw.logs.topics": flatTopics
 				}
 			})
 		}
@@ -1325,7 +1330,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			// Logger.log(`About to run logs query with queryBody: ${JSON.stringify(queryBody)}`)
 			const searchResults = await fastify.elastic.search({
 				index: `${fastify.manager.chain}-action-*`,
-				size: 1000,
+				size: 2000,
 				body: {
 					query: queryBody,
 					sort: [{ "@raw.trx_index": { order: "asc" } }]
