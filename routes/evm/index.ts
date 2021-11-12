@@ -31,6 +31,8 @@ const EOSIO_ASSERTION_PREFIX = 'assertion failure with message: '
 const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
 const NULL_HASH = '0x0000000000000000000000000000000000000000000000000000000000000000';
 const EMPTY_LOGS = '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000';
+// 1,000,000,000
+const BLOCK_GAS_LIMIT = '0x3b9aca00'
 
 const BLOCK_TEMPLATE = {
 	difficulty: "0x0",
@@ -41,6 +43,7 @@ const BLOCK_TEMPLATE = {
 	parentHash: NULL_HASH,
 	receiptsRoot: NULL_HASH,
 	sha3Uncles: NULL_HASH,
+	gasLimit: BLOCK_GAS_LIMIT,
 	size: "0x0",
 	stateRoot: NULL_HASH,
 	totalDifficulty: "0x0",
@@ -443,7 +446,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			}
 
 			return Object.assign({}, BLOCK_TEMPLATE, {
-				gasLimit: "0x0",
 				gasUsed: "0x0",
 				parentHash: getParentBlockHash(blockNumberHex),
 				hash: blockHash,
@@ -481,7 +483,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			let blockNumberHex = '0x' + blockDelta["@global"].block_num.toString(16);
 
 			return Object.assign({}, BLOCK_TEMPLATE, {
-				gasLimit: "0x0",
 				gasUsed: "0x0",
 				parentHash: getParentBlockHash(blockNumberHex),
 				hash: "0x" + blockDelta["@evmBlockHash"],
@@ -552,7 +553,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		logsBloom = "0x" + bloom.bitvector.toString("hex");
 
 		return Object.assign({}, BLOCK_TEMPLATE, {
-			gasLimit: numToHex(gasLimit),
 			gasUsed: numToHex(gasUsedBlock),
 			parentHash: getParentBlockHash(blockHex),
 			hash: blockHash,
