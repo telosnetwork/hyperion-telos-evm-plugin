@@ -1,7 +1,6 @@
-import {FastifyInstance, FastifySchema} from "fastify";
+import {FastifyInstance} from "fastify";
 import {getTransactionsHandler} from "./get_transactions";
-import {addApiRoute, getRouteName} from "../../../../../../api/helpers/functions";
-import {getActionResponseSchema} from "../../../../../../api/routes/v2-history/get_actions";
+import {addApiRoute} from "../../../../../../api/helpers/functions";
 
 export default function (fastify: FastifyInstance, opts: any, next) {
 	const schema: any = {
