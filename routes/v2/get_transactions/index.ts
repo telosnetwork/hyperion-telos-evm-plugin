@@ -1,6 +1,7 @@
 import {FastifyInstance} from "fastify";
 import {getTransactionsHandler} from "./get_transactions";
 import {addApiRoute} from "../../../../../../api/helpers/functions";
+import {makeTransactionSchema} from "./functions";
 
 export default function (fastify: FastifyInstance, opts: any, next) {
 	const schema: any = {
@@ -50,6 +51,7 @@ export default function (fastify: FastifyInstance, opts: any, next) {
 						type: "array",
 						items: {
 							type: 'object',
+							properties: makeTransactionSchema()
 						}
 					},
 					"total": {

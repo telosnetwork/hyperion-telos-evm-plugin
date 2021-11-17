@@ -11,9 +11,125 @@ export function addSortedBy(query, queryBody, sort_direction) {
     }
 }
 
+export function makeTransactionSchema() {
+    return {
+        "hash": {
+            description: 'Transaction hash, hex string',
+            type: 'string'
+        },
+        "trx_index": {
+            description: 'The index this transaction was in the block',
+            type: 'integer',
+            minimum: 0
+        },
+        "block": {
+            description: 'The block this transaction was in',
+            type: 'integer',
+            minimum: 0
+        },
+        "block_hash": {
+            description: 'The block hash of block this transaction was in, hex string',
+            type: 'string'
+        },
+        "input_data": {
+            description: 'The input data of this transaction, hex string',
+            type: 'string'
+        },
+        "value": {
+            description: 'The TLOS value transferred with this transaction',
+            type: 'integer',
+            minimum: 0
+        },
+        "nonce": {
+            description: 'Transaction nonce',
+            type: 'integer',
+            minimum: 0
+        },
+        "gas_price": {
+            description: 'Approved gas price for this transaction, in WEI.  Note the charged gas price may be lower',
+            type: 'integer',
+            minimum: 0
+        },
+        "gas_limit": {
+            description: 'The gas limit of this transaction',
+            type: 'integer',
+            minimum: 0
+        },
+        "status": {
+            description: '0 or 1, 0 is failure, 1 is success',
+            type: 'integer',
+            minimum: 0
+        },
+        "itxs": {
+            description: 'Internal transactions',
+            type: 'array'
+        },
+        "epoch": {
+            description: 'The epoch of this transaction',
+            type: 'integer',
+            minimum: 0
+        },
+        "createdaddr": {
+            description: 'The address of the contract created by this transaction, hex string',
+            type: 'string'
+        },
+        "gasused": {
+            description: 'The gas used by this transaction',
+            type: 'integer',
+            minimum: 0
+        },
+        "gasusedblock": {
+            description: 'The gas used by this block at this transaction index',
+            type: 'integer',
+            minimum: 0
+        },
+        "charged_gas_price": {
+            description: 'The gas price charged by this transaction',
+            type: 'integer',
+            minimum: 0
+        },
+        "output": {
+            description: 'The transaction output, hex string',
+            type: 'string'
+        },
+        "from": {
+            description: 'The sending address of this transaction, hex string',
+            type: 'string'
+        },
+        "to": {
+            description: 'The receiving address of this transaction, hex string',
+            type: 'string'
+        },
+        "v": {
+            description: 'v from the signature',
+            type: 'string'
+        },
+        "r": {
+            description: 'r from the signature',
+            type: 'string'
+        },
+        "s": {
+            description: 's from the signature',
+            type: 'string'
+        },
+    }
+}
+
 export function formatRawToTransaction(rawAction) {
-    let raw = rawAction["@raw"];
-    return raw;
+    let raw = rawAction._source["@raw"];
+    return {
+        ...raw,
+        block_hash: `0x${raw.block_hash}`,
+        value: parseInt(raw.value),
+        nonce: parseInt(raw.nonce),
+        gas_price: parseInt(raw.gas_price),
+        gas_limit: parseInt(raw.gas_limit),
+        createdaddr: raw.createdaddr ? `0x${raw.createdaddr}` : '',
+        output: `0x${raw.output}`,
+        v: `0x${raw.v}`,
+        r: `0x${raw.r}`,
+        s: `0x${raw.s}`
+    };
 }
 
 export function applyAddressFilter(query, queryStruct) {
