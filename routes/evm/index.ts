@@ -1248,8 +1248,10 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		// query preparation
 		let address: string = params.address;
 		let topics: string[] = params.topics;
-		let fromBlock: string | number = parseInt(await toBlockNumber(params.fromBlock), 16);
-		let toBlock: string | number = parseInt(await toBlockNumber(params.toBlock), 16);
+		let fromBlockExplicit = await toBlockNumber(params.fromBlock);
+		let fromBlock: string | number = typeof(fromBlockExplicit) == 'string' ? parseInt(fromBlockExplicit, 16) : fromBlockExplicit;
+		let toBlockExplicit = await toBlockNumber(params.toBlock)
+		let toBlock: string | number = typeof(toBlockExplicit) == 'string' ? parseInt(toBlockExplicit, 16) : toBlockExplicit;
 		let blockHash: string = params.blockHash;
 
 		const queryBody: any = {
@@ -1319,7 +1321,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 							flatTopics.push(orTopic.startsWith('0x') ? orTopic.slice(2).toLowerCase() : orTopic.toLowerCase());
 					})
 				} else {
-					return topic.startsWith('0x') ? topic.slice(2).toLowerCase() : topic.toLowerCase();
+					flatTopics.push(topic.startsWith('0x') ? topic.slice(2).toLowerCase() : topic.toLowerCase());
 				}
 			})
 			queryBody.bool.must.push({
