@@ -13,9 +13,7 @@ export function addSortedBy(query, queryBody, sort_direction) {
 
 export function formatRawToTransaction(rawAction) {
     let raw = rawAction["@raw"];
-    return {
-        raw
-    }
+    return raw;
 }
 
 export function applyAddressFilter(query, queryStruct) {
