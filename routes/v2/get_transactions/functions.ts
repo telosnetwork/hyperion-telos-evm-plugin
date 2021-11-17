@@ -116,7 +116,7 @@ export function makeTransactionSchema() {
 }
 
 export function formatRawToTransaction(rawAction) {
-    let raw = rawAction._source["@raw"];
+    let raw = rawAction["@raw"];
     return {
         ...raw,
         block_hash: `0x${raw.block_hash}`,
@@ -133,7 +133,7 @@ export function formatRawToTransaction(rawAction) {
 }
 
 export function applyAddressFilter(query, queryStruct) {
-    const address = query.address.replace(/^0x/, '').replace(/^0*/, '').toLowerCase();
+    const address = query.address.toLowerCase();
     queryStruct.bool.must.push({
         "bool": {
             "should": [
