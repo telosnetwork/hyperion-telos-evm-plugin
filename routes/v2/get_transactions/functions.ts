@@ -133,6 +133,9 @@ export function formatRawToTransaction(rawAction) {
 }
 
 export function applyAddressFilter(query, queryStruct) {
+    if (!query.address)
+        return;
+
     const address = query.address.toLowerCase();
     queryStruct.bool.must.push({
         "bool": {

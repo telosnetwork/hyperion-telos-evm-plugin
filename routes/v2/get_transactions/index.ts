@@ -40,7 +40,6 @@ export default function (fastify: FastifyInstance, opts: any, next) {
 					minimum: 0
 				}
 			},
-			required: ["address"]
 		},
 		response: {
 			200: {
