@@ -1364,22 +1364,27 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					for (const log of doc['@raw']['logs']) {
 						const block = doc['@raw']['block'];
 						if (!blockHash) {
-							if (fromBlock > block || toBlock < block)
+							if (fromBlock > block || toBlock < block) {
 								continue;
+							}
 						} else {
-							if (blockHash !== doc['@raw']['block_hash'])
+							if (blockHash !== doc['@raw']['block_hash']) {
 								continue;
+							}
 						}
 
 						let thisAddr = log.address.toLowerCase();
-						if (Array.isArray(addressFilter) && !addressFilter.includes(thisAddr))
+						if (Array.isArray(addressFilter) && !addressFilter.includes(thisAddr)) {
 							continue;
+						}
 
-						if (!Array.isArray(addressFilter) && thisAddr != addressFilter)
+						if (!Array.isArray(addressFilter) && thisAddr != addressFilter) {
 							continue;
+						}
 
-						if (!await hasTopics(log.topics, topicsFilter))
+						if (!await hasTopics(log.topics, topicsFilter)) {
 							continue;
+						}
 
 						results.push({
 							address: '0x' + log.address,
