@@ -1246,8 +1246,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		let params = await parameters; // Since we are using async/await, the parameters are actually a Promise
 		
 		// query preparation
-		let address: string = params.address;
-		let topics: string[] = params.topics;
+		let addressFilter: string | string[] = params.address;
+		let topicsFilter: string[] = params.topics;
 		let fromBlockExplicit = await toBlockNumber(params.fromBlock);
 		let fromBlock: string | number = typeof(fromBlockExplicit) == 'string' ? parseInt(fromBlockExplicit, 16) : fromBlockExplicit;
 		let toBlockExplicit = await toBlockNumber(params.toBlock)
@@ -1269,7 +1269,14 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			queryBody.bool.must.push({ term: { "@raw.block_hash": blockHash } })
 		}
 
+
 		if (fromBlock || toBlock) {
+			/*
+            // TODO: Test this, seems a logical thing to add.
+            if (fromBlock == toBlock) {
+                queryBody.bool.must.push({ term: { "@raw.block": fromBlock } })
+            } else {... the below
+             */
 			const rangeObj = { range: { "@raw.block": {} } };
 			if (fromBlock) {
 				// console.log(`getLogs using fromBlock: ${fromBlock}`);
@@ -1282,36 +1289,40 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			queryBody.bool.must.push(rangeObj);
 		}
 
-		if (address) {
-			if (Array.isArray(address)) {
-				if (address.length > 0) {
+		if (addressFilter) {
+			if (Array.isArray(addressFilter)) {
+				if (addressFilter.length > 0) {
 					const nestedOr = {bool: {should: []}};
 
-					address.forEach(addr => {
+					addressFilter = addressFilter.map(addr => {
+						if (addr.startsWith('0x'))
+							addr = addr.slice(2);
+
+						return addr.toLowerCase();
+					});
+
+					addressFilter.forEach(addr => {
 						if (!addr)
 							return;
 
-						if (addr.startsWith('0x')) {
-							addr = addr.slice(2);
-						}
-						nestedOr.bool.should.push({term: {"@raw.logs.address": addr.toLowerCase()}})
+						nestedOr.bool.should.push({term: {"@raw.logs.address": addr}})
 					})
 					queryBody.bool.must.push(nestedOr);
 				}
 			} else {
-				address = address.toLowerCase();
-				if (address.startsWith('0x')) {
-					address = address.slice(2);
+				addressFilter = addressFilter.toLowerCase();
+				if (addressFilter.startsWith('0x')) {
+					addressFilter = addressFilter.slice(2);
 				}
 				// console.log(`getLogs using address: ${address}`);
-				queryBody.bool.must.push({term: {"@raw.logs.address": address}})
+				queryBody.bool.must.push({term: {"@raw.logs.address": addressFilter}})
 			}
 		}
 
-		if (topics && topics.length > 0) {
+		if (topicsFilter && topicsFilter.length > 0) {
 			let flatTopics = [];
 			// console.log(`getLogs using topics:\n${topics}`);
-			topics.forEach(topic => {
+			topicsFilter.forEach(topic => {
 				if (!topic)
 					return;
 
@@ -1351,27 +1362,36 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				const doc = hit._source;
 				if (doc['@raw'] && doc['@raw']['logs']) {
 					for (const log of doc['@raw']['logs']) {
-						if (
-							doc['@raw']["block"] >= fromBlock &&
-							doc['@raw']["block"] <= toBlock &&
-							log.address.toLowerCase() === address.toLowerCase() &&
-							await hasTopics(log.topics, topics)
-							|| blockHash === doc['@raw']['block_hash'] &&
-							log.address.toLowerCase() === address.toLowerCase() &&
-							await hasTopics(log.topics, topics)
-							) {
-							results.push({
-								address: '0x' + log.address,
-								blockHash: '0x' + doc['@raw']['block_hash'],
-								blockNumber: numToHex(doc['@raw']['block']),
-								data: '0x' + log.data,
-								logIndex: numToHex(logCount),
-								removed: false,
-								topics: log.topics.map(t => '0x' + t.padStart(64, '0')),
-								transactionHash: doc['@raw']['hash'],
-								transactionIndex: numToHex(doc['@raw']['trx_index'])
-							});
+						const block = doc['@raw']['block'];
+						if (!blockHash) {
+							if (fromBlock > block || toBlock < block)
+								continue;
+						} else {
+							if (blockHash !== doc['@raw']['block_hash'])
+								continue;
 						}
+
+						let thisAddr = log.address.toLowerCase();
+						if (Array.isArray(addressFilter) && !addressFilter.includes(thisAddr))
+							continue;
+
+						if (!Array.isArray(addressFilter) && thisAddr != addressFilter)
+							continue;
+
+						if (!await hasTopics(log.topics, topicsFilter))
+							continue;
+
+						results.push({
+							address: '0x' + log.address,
+							blockHash: '0x' + doc['@raw']['block_hash'],
+							blockNumber: numToHex(doc['@raw']['block']),
+							data: '0x' + log.data,
+							logIndex: numToHex(logCount),
+							removed: false,
+							topics: log.topics.map(t => '0x' + t.padStart(64, '0')),
+							transactionHash: doc['@raw']['hash'],
+							transactionIndex: numToHex(doc['@raw']['trx_index'])
+						});
 						logCount++;
 					}
 				}
