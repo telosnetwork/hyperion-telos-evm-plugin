@@ -740,7 +740,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 	async function hasTopics(topics: string[], topicsFilter: string[]) {
 		const topicsFiltered = [];
-		
+
 		for (const [index,topic] of topicsFilter.entries()) {
 			if (topic === null) {
 				topicsFiltered.push(true);
@@ -1248,9 +1248,9 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		// query preparation
 		let addressFilter: string | string[] = params.address;
 		let topicsFilter: string[] = params.topics;
-		let fromBlockExplicit = await toBlockNumber(params.fromBlock);
+		let fromBlockExplicit = await toBlockNumber(params.fromBlock || 'latest');
 		let fromBlock: string | number = typeof(fromBlockExplicit) == 'string' ? parseInt(fromBlockExplicit, 16) : fromBlockExplicit;
-		let toBlockExplicit = await toBlockNumber(params.toBlock)
+		let toBlockExplicit = await toBlockNumber(params.toBlock || 'latest')
 		let toBlock: string | number = typeof(toBlockExplicit) == 'string' ? parseInt(toBlockExplicit, 16) : toBlockExplicit;
 		let blockHash: string = params.blockHash;
 
@@ -1364,6 +1364,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					for (const log of doc['@raw']['logs']) {
 						const block = doc['@raw']['block'];
 						if (!blockHash) {
+
 							if (fromBlock > block || toBlock < block) {
 								continue;
 							}
@@ -1373,17 +1374,21 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 							}
 						}
 
-						let thisAddr = log.address.toLowerCase();
-						if (Array.isArray(addressFilter) && !addressFilter.includes(thisAddr)) {
-							continue;
+						if (addressFilter) {
+							let thisAddr = log.address.toLowerCase();
+							if (Array.isArray(addressFilter) && !addressFilter.includes(thisAddr)) {
+								continue;
+							}
+
+							if (!Array.isArray(addressFilter) && thisAddr != addressFilter) {
+								continue;
+							}
 						}
 
-						if (!Array.isArray(addressFilter) && thisAddr != addressFilter) {
-							continue;
-						}
-
-						if (!await hasTopics(log.topics, topicsFilter)) {
-							continue;
+						if (topicsFilter) {
+							if (!await hasTopics(log.topics, topicsFilter)) {
+								continue;
+							}
 						}
 
 						results.push({
