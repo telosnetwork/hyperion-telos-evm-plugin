@@ -1367,7 +1367,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 								data: '0x' + log.data,
 								logIndex: numToHex(logCount),
 								removed: false,
-								topics: log.topics.map(t => '0x' + t),
+								topics: log.topics.map(t => '0x' + t.padStart(64, '0')),
 								transactionHash: doc['@raw']['hash'],
 								transactionIndex: numToHex(doc['@raw']['trx_index'])
 							});
