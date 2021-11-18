@@ -15,6 +15,17 @@ async function getTransactions(fastify: FastifyInstance, request: FastifyRequest
 	const maxActions = fastify.manager.config.api.limits.get_actions;
 	const queryStruct = {
 		"bool": {
+			filter: [
+				 {
+					"term": {
+						"act.name": "raw"
+					}
+				},{
+					"term": {
+						"act.account": fastify.evm.telos.telosContract
+					}
+				}
+			],
 			must: [],
 			must_not: [],
 			boost: 1.0
@@ -37,7 +48,6 @@ async function getTransactions(fastify: FastifyInstance, request: FastifyRequest
 
 	// Include sorting
 	addSortedBy(query, query_body, sort_direction);
-	let address = query.address.replace(/^0x/, '').replace(/^0*/, '').toLowerCase();
 
 	const esResults = await fastify.elastic.search({
 		"index": fastify.manager.chain + '-action-*',
