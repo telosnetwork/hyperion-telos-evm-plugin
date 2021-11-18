@@ -740,6 +740,13 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 	async function hasTopics(topics: string[], topicsFilter: string[]) {
 		const topicsFiltered = [];
+		// console.log(`filtering ${JSON.stringify(topics)} by filter: ${JSON.stringify(topicsFilter)}`);
+		topicsFilter = topicsFilter.map(t => {
+			if (t.startsWith('0x'))
+				t = t.slice(2);
+
+			return t.replace(/^0*``/, '');
+		})
 
 		for (const [index,topic] of topicsFilter.entries()) {
 			if (topic === null) {
@@ -1244,15 +1251,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	methods.set('eth_getLogs', async ([parameters]) => {
 		// console.log(parameters);
 		let params = await parameters; // Since we are using async/await, the parameters are actually a Promise
-		
-		// query preparation
-		let addressFilter: string | string[] = params.address;
-		let topicsFilter: string[] = params.topics;
-		let fromBlockExplicit = await toBlockNumber(params.fromBlock || 'latest');
-		let fromBlock: string | number = typeof(fromBlockExplicit) == 'string' ? parseInt(fromBlockExplicit, 16) : fromBlockExplicit;
-		let toBlockExplicit = await toBlockNumber(params.toBlock || 'latest')
-		let toBlock: string | number = typeof(toBlockExplicit) == 'string' ? parseInt(toBlockExplicit, 16) : toBlockExplicit;
-		let blockHash: string = params.blockHash;
 
 		const queryBody: any = {
 			bool: {
@@ -1262,15 +1260,25 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			}
 		};
 
+		// query preparation
+		let addressFilter: string | string[] = params.address;
+		let topicsFilter: string[] = params.topics;
+		let blockHash: string = params.blockHash;
+		let fromBlock: string | number;
+		let toBlock: string | number;
+
 		if (blockHash) {
-			if (fromBlock || toBlock) {
+			if (params.fromBlock || params.toBlock) {
 				throw new Error('fromBlock/toBlock are not allowed with blockHash query');
 			}
 			queryBody.bool.must.push({ term: { "@raw.block_hash": blockHash } })
-		}
+		} else {
 
+			let fromBlockExplicit = await toBlockNumber(params.fromBlock || 'latest');
+			fromBlock = typeof(fromBlockExplicit) == 'string' ? parseInt(fromBlockExplicit, 16) : fromBlockExplicit;
+			let toBlockExplicit = await toBlockNumber(params.toBlock || 'latest')
+			toBlock = typeof(toBlockExplicit) == 'string' ? parseInt(toBlockExplicit, 16) : toBlockExplicit;
 
-		if (fromBlock || toBlock) {
 			/*
             // TODO: Test this, seems a logical thing to add.
             if (fromBlock == toBlock) {
@@ -1364,12 +1372,13 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					for (const log of doc['@raw']['logs']) {
 						const block = doc['@raw']['block'];
 						if (!blockHash) {
-
 							if (fromBlock > block || toBlock < block) {
+								// console.log('filter out by from/to block');
 								continue;
 							}
 						} else {
 							if (blockHash !== doc['@raw']['block_hash']) {
+								// console.log('filter out by blockHash');
 								continue;
 							}
 						}
@@ -1377,16 +1386,19 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 						if (addressFilter) {
 							let thisAddr = log.address.toLowerCase();
 							if (Array.isArray(addressFilter) && !addressFilter.includes(thisAddr)) {
+								// console.log('filter out by addressFilter as array');
 								continue;
 							}
 
 							if (!Array.isArray(addressFilter) && thisAddr != addressFilter) {
+								// console.log('filter out by addressFilter as string');
 								continue;
 							}
 						}
 
 						if (topicsFilter) {
 							if (!await hasTopics(log.topics, topicsFilter)) {
+								// console.log('filter out by topics');
 								continue;
 							}
 						}
