@@ -1268,6 +1268,10 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		let toBlock: string | number;
 
 		if (blockHash) {
+			if (blockHash.startsWith('0x')) {
+				blockHash = blockHash.slice(2)
+			}
+
 			if (params.fromBlock || params.toBlock) {
 				throw new Error('fromBlock/toBlock are not allowed with blockHash query');
 			}
