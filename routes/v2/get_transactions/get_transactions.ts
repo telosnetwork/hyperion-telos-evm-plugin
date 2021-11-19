@@ -3,6 +3,8 @@ import {timedQuery, getTrackTotalHits} from "../../../../../../api/helpers/funct
 import {
 	getSkipLimit,
 	getSortDir,
+	applyHashFilter,
+	applyBlockFilter,
 	applyAddressFilter,
 	applyTimeFilter,
 	addSortedBy,
@@ -36,6 +38,8 @@ async function getTransactions(fastify: FastifyInstance, request: FastifyRequest
 	const sort_direction = getSortDir(query);
 	applyTimeFilter(query, queryStruct);
 	applyAddressFilter(query, queryStruct);
+	applyBlockFilter(query, queryStruct);
+	applyHashFilter(query, queryStruct);
 
 	// allow precise counting of total hits
 	const trackTotalHits = getTrackTotalHits(query);
