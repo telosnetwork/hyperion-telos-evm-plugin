@@ -132,6 +132,43 @@ export function formatRawToTransaction(rawAction) {
     };
 }
 
+export function applyHashFilter(query, queryStruct) {
+    if (!query.hash)
+        return;
+
+    let hash = query.hash;
+    if (hash.startsWith('0x'))
+        hash = hash.slice(2);
+
+    hash = hash.toLowerCase();
+
+    queryStruct.bool.must.push({
+        "bool": {
+            "must": {
+                "term": {
+                    "@raw.hash": hash
+                }
+            }
+        }
+    })
+}
+
+export function applyBlockFilter(query, queryStruct) {
+    if (!query.block)
+        return;
+
+    const block = query.block;
+    queryStruct.bool.must.push({
+        "bool": {
+            "must": {
+                "term": {
+                    "@raw.block": block
+                }
+            }
+        }
+    })
+}
+
 export function applyAddressFilter(query, queryStruct) {
     if (!query.address)
         return;

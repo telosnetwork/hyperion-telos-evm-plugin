@@ -38,6 +38,14 @@ export default function (fastify: FastifyInstance, opts: any, next) {
 					description: 'skip [n] results',
 					type: 'integer',
 					minimum: 0
+				},
+				"block": {
+					description: 'filter by block',
+					type: 'integer'
+				},
+				"hash": {
+					description: 'hash for transaction',
+					type: 'string'
 				}
 			},
 		},
