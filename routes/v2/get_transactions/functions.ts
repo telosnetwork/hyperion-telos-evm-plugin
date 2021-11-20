@@ -64,6 +64,14 @@ export function makeTransactionSchema() {
             description: 'Internal transactions',
             type: 'array'
         },
+        "logs": {
+            description: 'Transaction logs',
+            type: 'array'
+        },
+        "logsBloom": {
+            description: 'Logs bloom filter',
+            type: 'string'
+        },
         "epoch": {
             description: 'The epoch of this transaction',
             type: 'integer',
