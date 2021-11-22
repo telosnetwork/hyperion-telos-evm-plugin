@@ -1,7 +1,7 @@
 import {FastifyInstance, FastifyReply, FastifyRequest} from "fastify";
 import {TelosEvmConfig} from "../../index";
 import Bloom from "../../bloom";
-import {toChecksumAddress, blockHexToHash} from "../../utils"
+import {toChecksumAddress, blockHexToHash, numToHex, buildLogsObject} from "../../utils"
 import DebugLogger from "../../debugLogging";
 import {AuthorityProvider, AuthorityProviderArgs, BinaryAbi} from 'eosjs/dist/eosjs-api-interfaces';
 import {PushTransactionArgs} from 'eosjs/dist/eosjs-rpc-interfaces'
@@ -12,7 +12,6 @@ import {PrivateKey,Signature} from 'eosjs-ecc'
 import {TransactionVars} from '@telosnetwork/telosevm-js'
 import {handleChainApiRedirect} from "../../../../../api/helpers/functions";
 import {isNil} from "lodash";
-
 
 const BN = require('bn.js');
 const abiDecoder = require("abi-decoder");
@@ -50,14 +49,6 @@ const BLOCK_TEMPLATE = {
 	transactionsRoot: NULL_HASH,
 	uncles: []
 };
-
-function numToHex(input: number | string) {
-    if (typeof input === 'number') {
-        return '0x' + input.toString(16)
-    } else {
-        return '0x' + (parseInt(input, 10)).toString(16)
-    }
-}
 
 function parseRevertReason(revertOutput) {
     if (!revertOutput || revertOutput.length < 138) {
@@ -174,18 +165,6 @@ function jsonRPC2Error(reply: FastifyReply, type: string, requestId: string, mes
 		}
 	};
 	return errorResponse;
-}
-
-interface EthLog {
-    address: string;
-    blockHash: string;
-    blockNumber: string;
-    data: string;
-    logIndex: string;
-    removed: boolean;
-    topics: string[];
-    transactionHash: string;
-    transactionIndex: string;
 }
 
 interface TransactionError extends Error {
@@ -389,28 +368,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		}
 	}
 	*/
-
-	function buildLogsObject(logs: any[], blHash: string, blNumber: string, txHash: string, txIndex: string): EthLog[] {
-		const _logs: EthLog[] = [];
-		if (logs) {
-			let counter = 0;
-			for (const log of logs) {
-				_logs.push({
-					address: toChecksumAddress(log.address),
-					blockHash: blHash,
-					blockNumber: blNumber,
-					data: "0x" + log.data,
-					logIndex: numToHex(counter),
-					removed: false,
-					topics: log.topics.map(t => '0x' + t.padStart(64, '0')),
-					transactionHash: txHash,
-					transactionIndex: txIndex
-				});
-				counter++;
-			}
-		}
-		return _logs;
-	}
 
 	function getParentBlockHash(blockNumberHex: string) {
 		let blockNumber = parseInt(blockNumberHex, 16);

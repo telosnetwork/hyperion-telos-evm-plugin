@@ -1,3 +1,5 @@
+import {buildLogsObject, numToHex} from "../../../utils";
+
 export function addSortedBy(query, queryBody, sort_direction) {
     if (query['sortedBy']) {
         const opts = query['sortedBy'].split(":");
@@ -134,6 +136,13 @@ export function formatRawToTransaction(rawAction) {
         gas_limit: parseInt(raw.gas_limit),
         createdaddr: raw.createdaddr ? `0x${raw.createdaddr}` : '',
         output: `0x${raw.output}`,
+        logs: buildLogsObject(
+            raw.logs,
+            raw.block_hash,
+            raw.block,
+            raw.hash,
+            numToHex(raw.trx_index)
+        ),
         v: `0x${raw.v}`,
         r: `0x${raw.r}`,
         s: `0x${raw.s}`
