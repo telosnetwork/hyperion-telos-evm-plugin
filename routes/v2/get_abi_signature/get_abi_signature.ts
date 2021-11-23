@@ -20,7 +20,7 @@ async function getAbiSignature(fastify: FastifyInstance, request: FastifyRequest
 	if (query.type === 'function') {
 		const [cachedResponse, hash] = await getCacheByHash(redis, `evm-func-sig-${trimmedHex}`, fastify.manager.chain);
 		if (cachedResponse) {
-			return cachedResponse;
+			return { text_signature: cachedResponse };
 		}
 
 		let text_signature = '';
@@ -34,7 +34,7 @@ async function getAbiSignature(fastify: FastifyInstance, request: FastifyRequest
 	} else if (query.type === 'event') {
 		const [cachedResponse, hash] = await getCacheByHash(redis, `evm-func-event-${trimmedHex}`, fastify.manager.chain);
 		if (cachedResponse) {
-			return cachedResponse;
+			return { text_signature: cachedResponse };
 		}
 
 		let text_signature = '';
