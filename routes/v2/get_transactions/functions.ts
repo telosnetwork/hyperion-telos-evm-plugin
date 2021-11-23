@@ -138,7 +138,7 @@ export function formatRawToTransaction(rawAction) {
         output: `0x${raw.output}`,
         logs: buildLogsObject(
             raw.logs,
-            raw.block_hash,
+            `0x${raw.block_hash}`,
             raw.block,
             raw.hash,
             numToHex(raw.trx_index)
