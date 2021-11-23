@@ -26,7 +26,12 @@ export default function (fastify: FastifyInstance, opts: any, next) {
 		response: {
 			200: {
 				description: "Success",
-				type: "string"
+				type: "object",
+				properties: {
+					"text_signature": {
+						type: "string"
+					}
+				}
 			}
 		}
 	};

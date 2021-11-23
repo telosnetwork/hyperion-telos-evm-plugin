@@ -23,27 +23,28 @@ async function getAbiSignature(fastify: FastifyInstance, request: FastifyRequest
 			return cachedResponse;
 		}
 
-		let textSignature = '';
+		let text_signature = '';
 		const dirResponse = await sigDirectoryAxios.get(`/api/v1/signatures/?hex_signature=0x${trimmedHex}`)
 		if (dirResponse?.data?.results?.length >  0) {
-			textSignature = dirResponse.data.results[0].text_signature
+			text_signature = dirResponse.data.results[0].text_signature
 		}
 
-		fastify.redis.set(hash, textSignature, 'EX', SIG_CACHE_EXPIRE).catch(console.log);
-		return textSignature;
+		fastify.redis.set(hash, text_signature, 'EX', SIG_CACHE_EXPIRE).catch(console.log);
+		return text_signature;
 	} else if (query.type === 'event') {
 		const [cachedResponse, hash] = await getCacheByHash(redis, `evm-func-event-${trimmedHex}`, fastify.manager.chain);
 		if (cachedResponse) {
 			return cachedResponse;
 		}
 
-		let textSignature = '';
+		let text_signature = '';
 		const dirResponse = await sigDirectoryAxios.get(`/api/v1/event-signatures/?hex_signature=0x${trimmedHex}`)
-		if (dirResponse?.data?.results?.length >  0)
-			textSignature = dirResponse.data.results[0].text_signature
+		if (dirResponse?.data?.results?.length >  0) {
+			text_signature = dirResponse.data.results[0].text_signature
+		}
 
-		fastify.redis.set(hash, textSignature, 'EX', SIG_CACHE_EXPIRE).catch(console.log);
-		return textSignature;
+		fastify.redis.set(hash, text_signature, 'EX', SIG_CACHE_EXPIRE).catch(console.log);
+		return { text_signature };
 	} else {
 		return `invalid type ${query.type}`;
 	}
