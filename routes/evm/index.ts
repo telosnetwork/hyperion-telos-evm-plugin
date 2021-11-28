@@ -1,5 +1,5 @@
 import {FastifyInstance, FastifyReply, FastifyRequest} from "fastify";
-import {TelosEvmConfig} from "../../index";
+import {TelosEvmConfig} from "../../types";
 import Bloom from "../../bloom";
 import {
 	toChecksumAddress,
