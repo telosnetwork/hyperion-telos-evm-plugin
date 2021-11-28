@@ -12,6 +12,8 @@ export default class RawActionBroadcaster {
     }
 
     initUWS() {
+        const host = this.config.indexerWebsocketHost;
+        const port = this.config.indexerWebsocketPort;
         this.broadcastServer = uWS.App({
         }).ws('/evm', {
             compression: 0,
@@ -22,7 +24,7 @@ export default class RawActionBroadcaster {
             message: () => {},
             drain: () => {},
             close: () => {},
-        }).listen(, (token) => {
+        }).listen(host, port, (token) => {
             if (token) {
                 console.log('Listening to port ' + port);
             } else {
@@ -37,6 +39,6 @@ export default class RawActionBroadcaster {
             return;
         }
 
-        this.broadcastServer.publish('raw', JSON.stringify(rawAction));
+        this.broadcastServer.publish('raw', rawAction);
     }
 }

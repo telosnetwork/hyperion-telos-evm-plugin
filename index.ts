@@ -366,18 +366,12 @@ export default class TelosEvm extends HyperionPlugin {
                 if (headers) {
                     if (headers.event === 'trace' && headers.account === 'eosio.evm' && headers.name === 'raw') {
                         if (streamEvent.content) {
-                            const content = JSON.parse(streamEvent.content.toString());
-                            this.processStreamData(headers, content);
+                            this.rawActionBroadcaster.broadcastRaw(streamEvent.content.toString());
                         }
                     }
                 }
             }
         });
-    }
-
-    processStreamData(headers: any, content: any) {
-        console.log(headers);
-        console.log(content);
     }
 
     initOnce() {
