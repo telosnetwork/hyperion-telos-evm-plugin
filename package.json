@@ -26,12 +26,14 @@
     "@ethereumjs/common": "^2.4.0",
     "@ethereumjs/tx": "^3.3.0",
     "@telosnetwork/telosevm-js": "0.2.5",
+    "@types/uws": "^0.13.3",
     "abi-decoder": "^2.4.0",
     "bn.js": "^5.2.0",
     "eosjs-ecc": "^4.0.7",
     "ethereumjs-abi": "^0.6.8",
     "ethereumjs-util": "^7.0.10",
-    "keccak": "^3.0.2"
+    "keccak": "^3.0.2",
+    "uWebSockets.js": "uNetworking/uWebSockets.js#v20.4.0"
   },
   "devDependencies": {
     "typescript": "4.4.3"

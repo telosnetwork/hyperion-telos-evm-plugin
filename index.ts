@@ -16,20 +16,11 @@ const BN = require('bn.js');
 const createKeccakHash = require('keccak');
 const {TelosEvmApi} = require('@telosnetwork/telosevm-js');
 const {Signature} = require('eosjs-ecc');
+import RawActionBroadcaster from "./ws/RawActionBroadcaster";
+import {TelosEvmConfig} from "./types";
 
 const RECEIPT_LOG_START = "RCPT{{";
 const RECEIPT_LOG_END = "}}RCPT";
-
-export interface TelosEvmConfig {
-    signer_account: string;
-    signer_permission: string;
-    signer_key: string;
-    contracts: {
-        main: string;
-    }
-    chainId: number;
-    debug: boolean;
-}
 
 export default class TelosEvm extends HyperionPlugin {
     internalPluginName = 'telos-evm';
@@ -46,6 +37,7 @@ export default class TelosEvm extends HyperionPlugin {
     hardfork = 'istanbul';
     counter = 0;
     pluginConfig: TelosEvmConfig;
+    rawActionBroadcaster: RawActionBroadcaster;
 
     constructor(config: TelosEvmConfig) {
         // TODO: some setTimeout that will send the doresources call?
@@ -64,6 +56,7 @@ export default class TelosEvm extends HyperionPlugin {
                 );
                 this.loadActionHandlers();
                 this.loadDeltaHandlers();
+                this.registerStreamHandlers();
             }
         }
     }
@@ -363,6 +356,35 @@ export default class TelosEvm extends HyperionPlugin {
                 }
             }
         });
+    }
+
+    registerStreamHandlers() {
+        this.streamHandlers.push({
+            event: 'trace',
+            handler: async streamEvent => {
+                const headers = streamEvent.properties.headers;
+                if (headers) {
+                    if (headers.event === 'trace' && headers.account === 'eosio.evm' && headers.name === 'raw') {
+                        if (streamEvent.content) {
+                            const content = JSON.parse(streamEvent.content.toString());
+                            this.processStreamData(headers, content);
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    processStreamData(headers: any, content: any) {
+        console.log(headers);
+        console.log(content);
+    }
+
+    initOnce() {
+        super.initOnce();
+        const broadcaster = new RawActionBroadcaster(this.baseConfig);
+        broadcaster.initUWS();
+        this.rawActionBroadcaster = broadcaster;
     }
 
     addRoutes(server: FastifyInstance): void {
