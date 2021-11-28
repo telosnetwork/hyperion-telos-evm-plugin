@@ -29,7 +29,7 @@ Required plugin config on chain.config.json
       "indexerWebsocketPort": "7300",
       "indexerWebsocketUri": "ws://127.0.0.1:7300",
       "rpcWebsocketHost": "0.0.0.0",
-      "rpcWebsocketPort": "7300"
+      "rpcWebsocketPort": "7400"
     }
   }
 }

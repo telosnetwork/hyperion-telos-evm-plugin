@@ -376,6 +376,10 @@ export default class TelosEvm extends HyperionPlugin {
 
     initOnce() {
         super.initOnce();
+        if (this.rawActionBroadcaster) {
+            console.error("initOnce called more than once!!! rawActionBroadcaster already set!!");
+            return;
+        }
         const broadcaster = new RawActionBroadcaster(this.baseConfig);
         broadcaster.initUWS();
         this.rawActionBroadcaster = broadcaster;
