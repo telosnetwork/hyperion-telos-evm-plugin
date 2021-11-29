@@ -1705,7 +1705,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		}
 	}
 
-	fastify.decorate('evmRpcHandler', doRpcPayload);
+	opts.rpcPayloadHandler = doRpcPayload;
 
 	fastify.post('/evm', { schema }, async (request: FastifyRequest, reply: FastifyReply) => {
 		let origin;

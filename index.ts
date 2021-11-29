@@ -413,7 +413,7 @@ export default class TelosEvm extends HyperionPlugin {
             dirNameRoutePrefix: false,
             options: this.pluginConfig
         });
-        this.websocketRPC = new WebsocketRPC(this.baseConfig, server);
+        this.websocketRPC = new WebsocketRPC(this.pluginConfig);
     }
 
     logDebug(msg: String): void {
