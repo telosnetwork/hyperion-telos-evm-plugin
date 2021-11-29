@@ -185,7 +185,7 @@ class TransactionError extends Error {
 
 export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
-	const methods: Map<string, (params?: any, headers?: any) => Promise<any> | any> = new Map();
+	const methods: Map<string, (params?: any) => Promise<any> | any> = new Map();
 	const decimalsBN = new BN('1000000000000000000');
 	const zeros = "0x0000000000000000000000000000000000000000";
 	const chainAddr = [
@@ -708,7 +708,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
     /**
      * Returns the supported modules
      */
-    methods.set('rpc_modules', (params, headers) => {
+    methods.set('rpc_modules', () => {
         return {
             "eth":"1.0",
             "net":"1.0",
@@ -721,7 +721,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
     /**
      * Returns the user-agent
      */
-    methods.set('web3_clientVersion', (params, headers) => {
+    methods.set('web3_clientVersion', () => {
 		// TODO: maybe figure out how to set this dynamically from a tag?
         return `TelosEVM/v1.0.0`;
     })
@@ -1587,44 +1587,26 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		tags: ['evm'],
 	};
 
-	 async function doRpcMethod(jsonRpcRequest: any, request: FastifyRequest, reply: FastifyReply) {
+	 async function doRpcMethod(jsonRpcRequest: any, clientInfo, reply: any) {
 		 let { jsonrpc, id, method, params } = jsonRpcRequest;
+		 let { usage, limit, origin, ip } = clientInfo;
 
 		 // if jsonrpc not set, assume 2.0 as there are some clients which leave it out
 		 if (!jsonrpc)
 			 jsonrpc = "2.0"
 
 		 if (jsonrpc !== "2.0") {
-			 Logger.log(`Got invalid jsonrpc, request.body was: ${JSON.stringify(request.body, null, 4)}`);
+			 Logger.log(`Got invalid jsonrpc, request.body was: ${JSON.stringify(jsonRpcRequest, null, 4)}`);
 			 return jsonRPC2Error(reply, "InvalidRequest", id, "Invalid JSON RPC");
 		 }
 		 if (methods.has(method)) {
 			 const tRef = process.hrtime.bigint();
 			 const func = methods.get(method);
 			 try {
-				 const result = await func(params, request.headers);
-				 let origin;
-				 if (request.headers['origin'] === METAMASK_EXTENSION_ORIGIN) {
-					 origin = 'MetaMask';
-				 } else {
-					 if (request.headers['origin']) {
-						 origin = request.headers['origin'];
-					 } else {
-						 origin = request.headers['user-agent'];
-					 }
-				 }
-				 const _usage = parseInt(reply.getHeader('x-ratelimit-remaining'));
-				 const _limit = parseInt(reply.getHeader('x-ratelimit-limit'));
-				 let _ip = request.headers['x-forwarded-for'] || '';
-				 if (Array.isArray(_ip))
-					 _ip = _ip[0] || ''
-
-				 if (_ip.includes(','))
-					 _ip = _ip.substr(0, _ip.indexOf(','));
+				 const result = await func(params);
 
 				 const duration = ((Number(process.hrtime.bigint()) - Number(tRef)) / 1000).toFixed(3);
-
-				 console.log(`RPCREQUEST: ${new Date().toISOString()} - ${duration} μs - ${_ip} (${isNaN(_usage) ? 0 : _usage}/${isNaN(_limit) ? 0 : _limit}) - ${origin} - ${method}`);
+				 console.log(`RPCREQUEST: ${new Date().toISOString()} - ${duration} μs - ${ip} (${isNaN(usage) ? 0 : usage}/${isNaN(limit) ? 0 : limit}) - ${origin} - ${method}`);
 				 Logger.log(`REQ: ${JSON.stringify(params)} | RESP: ${typeof result == 'object' ? JSON.stringify(result, null, 2) : result}`);
 				 return { id, jsonrpc, result };
 			 } catch (e) {
@@ -1658,42 +1640,55 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		 }
 	 }
 
-	fastify.post('/evm', { schema }, async (request: FastifyRequest, reply: FastifyReply) => {
-		if (Array.isArray(request.body)) {
-			if (request.body.length == 0)
+	 async function doRpcPayload(payload, clientInfo, reply) {
+		 const { ip, origin, usage, limit } = clientInfo;
+		if (Array.isArray(payload)) {
+			if (payload.length == 0)
 				return {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}
 
 			const tRef = process.hrtime.bigint();
+
 			let promises = [];
-			for (let i = 0; i < request.body.length; i++) {
-				let promise = doRpcMethod(request.body[i], request, reply);
+			for (let i = 0; i < payload.length; i++) {
+				let promise = doRpcMethod(payload[i], clientInfo, reply);
 				promises.push(promise);
 			}
 			let responses = await Promise.all(promises);
-			let origin;
-			if (request.headers['origin'] === METAMASK_EXTENSION_ORIGIN) {
-				origin = 'MetaMask';
-			} else {
-				if (request.headers['origin']) {
-					origin = request.headers['origin'];
-				} else {
-					origin = request.headers['user-agent'];
-				}
-			}
+
 			const duration = ((Number(process.hrtime.bigint()) - Number(tRef)) / 1000).toFixed(3);
-			const _usage = reply.getHeader('x-ratelimit-remaining');
-			const _limit = reply.getHeader('x-ratelimit-limit');
-			let _ip = request.headers['x-forwarded-for'] || '';
-			if (Array.isArray(_ip))
-				_ip = _ip[0] || ''
-
-			if (_ip.includes(','))
-				_ip = _ip.substr(0, _ip.indexOf(','));
-
-			console.log(`RPCREQUESTBATCH: ${new Date().toISOString()} - ${duration} μs - ${_ip} (${_usage}/${_limit}) - ${origin} - BATCH OF ${responses.length}`);
+			console.log(`RPCREQUESTBATCH: ${new Date().toISOString()} - ${duration} μs - ${ip} (${usage}/${limit}) - ${origin} - BATCH OF ${responses.length}`);
 			return responses;
 		} else {
-			return await doRpcMethod(request.body, request, reply);
+			return await doRpcMethod(payload, clientInfo, reply);
 		}
+	}
+
+	fastify.decorate('evmRpcHandler', doRpcPayload);
+
+	fastify.post('/evm', { schema }, async (request: FastifyRequest, reply: FastifyReply) => {
+		let origin;
+		if (request.headers['origin'] === METAMASK_EXTENSION_ORIGIN) {
+			origin = 'MetaMask';
+		} else {
+			if (request.headers['origin']) {
+				origin = request.headers['origin'];
+			} else {
+				origin = request.headers['user-agent'];
+			}
+		}
+		const usage = parseInt(reply.getHeader('x-ratelimit-remaining'));
+		const limit = parseInt(reply.getHeader('x-ratelimit-limit'));
+		let ip = request.headers['x-forwarded-for'] || '';
+		if (Array.isArray(ip))
+			ip = ip[0] || ''
+
+		if (ip.includes(','))
+			ip = ip.substr(0, ip.indexOf(','));
+
+		const clientInfo = {
+			ip, origin, usage, limit
+		}
+
+		doRpcPayload(request.body, clientInfo, reply);
 	});
 }
