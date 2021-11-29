@@ -18,6 +18,7 @@ const {TelosEvmApi} = require('@telosnetwork/telosevm-js');
 const {Signature} = require('eosjs-ecc');
 import RawActionBroadcaster from "./ws/RawActionBroadcaster";
 import {TelosEvmConfig} from "./types";
+import WebsocketRPC from "./ws/WebsocketRPC";
 
 const RECEIPT_LOG_START = "RCPT{{";
 const RECEIPT_LOG_END = "}}RCPT";
@@ -38,6 +39,7 @@ export default class TelosEvm extends HyperionPlugin {
     counter = 0;
     pluginConfig: TelosEvmConfig;
     rawActionBroadcaster: RawActionBroadcaster;
+    websocketRPC: WebsocketRPC
 
     constructor(config: TelosEvmConfig) {
         // TODO: some setTimeout that will send the doresources call?
@@ -391,7 +393,7 @@ export default class TelosEvm extends HyperionPlugin {
 
     initHandlerMap(): any {
         return {
-            'evm_transaction': (msg) => this.rawActionBroadcaster.broadcastRaw(msg)
+            'evm_transaction': (msg) => this.rawActionBroadcaster.broadcastRaw(msg.actionTrace)
         };
     }
 
@@ -411,6 +413,7 @@ export default class TelosEvm extends HyperionPlugin {
             dirNameRoutePrefix: false,
             options: this.pluginConfig
         });
+        this.websocketRPC = new WebsocketRPC(this.baseConfig, server);
     }
 
     logDebug(msg: String): void {
