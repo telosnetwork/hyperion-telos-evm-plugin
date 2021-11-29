@@ -8,13 +8,11 @@ export default class WebsocketRPC {
     config: TelosEvmConfig
     websocketRPC: TemplatedApp
     websocketClient: WebSocket
-    fastify: any
 
-    constructor(config: TelosEvmConfig, fastify: any) {
+    constructor(config: TelosEvmConfig) {
         this.config = config;
         this.initUWS();
         this.initWSClient();
-        this.fastify = fastify;
     }
 
     initWSClient() {
@@ -32,8 +30,10 @@ export default class WebsocketRPC {
             maxPayloadLength: 16 * 1024 * 1024,
             open: () => {
             },
-            message: (msg) => {
-                const rpcResponse = this.fastify.evmRpcHandler(msg);
+            message: async (msg) => {
+                const rpcResponse = await this.config.rpcPayloadHandler(msg);
+                console.log("GOT RESPONSE: ");
+                console.dir(rpcResponse);
             },
             drain: () => {
             },

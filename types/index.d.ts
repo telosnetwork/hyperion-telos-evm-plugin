@@ -12,4 +12,5 @@ export interface TelosEvmConfig {
     indexerWebsocketUri: string;
     rpcWebsocketHost: string;
     rpcWebsocketPort: number;
+    rpcPayloadHandler: any;
 }
