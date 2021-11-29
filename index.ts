@@ -369,10 +369,11 @@ export default class TelosEvm extends HyperionPlugin {
                         if (streamEvent.content) {
                             const evPayload = {
                                 event: 'evm_transaction',
-                                actionTrace: streamEvent
+                                actionTrace: streamEvent.content.toString()
 
                             };
-                            process.send(evPayload);                        }
+                            process.send(evPayload);
+                        }
                     }
                 }
             }
@@ -386,6 +387,12 @@ export default class TelosEvm extends HyperionPlugin {
             return;
         }
         this.rawActionBroadcaster = new RawActionBroadcaster(this.baseConfig);
+    }
+
+    initHandlerMap(): any {
+        return {
+            'evm_transaction': this.rawActionBroadcaster.broadcastRaw
+        };
     }
 
     addRoutes(server: FastifyInstance): void {
