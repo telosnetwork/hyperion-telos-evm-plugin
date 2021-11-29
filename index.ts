@@ -391,7 +391,7 @@ export default class TelosEvm extends HyperionPlugin {
 
     initHandlerMap(): any {
         return {
-            'evm_transaction': this.rawActionBroadcaster.broadcastRaw
+            'evm_transaction': (msg) => this.rawActionBroadcaster.broadcastRaw(msg)
         };
     }
 
