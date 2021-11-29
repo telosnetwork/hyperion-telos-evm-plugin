@@ -359,6 +359,7 @@ export default class TelosEvm extends HyperionPlugin {
     }
 
     registerStreamHandlers() {
+        const pluginThis = this;
         this.streamHandlers.push({
             event: 'trace',
             handler: async streamEvent => {
@@ -366,8 +367,12 @@ export default class TelosEvm extends HyperionPlugin {
                 if (headers) {
                     if (headers.event === 'trace' && headers.account === 'eosio.evm' && headers.name === 'raw') {
                         if (streamEvent.content) {
-                            this.rawActionBroadcaster.broadcastRaw(streamEvent.content.toString());
-                        }
+                            const evPayload = {
+                                event: 'evm_transaction',
+                                actionTrace: streamEvent
+
+                            };
+                            process.send(evPayload);                        }
                     }
                 }
             }
@@ -380,9 +385,7 @@ export default class TelosEvm extends HyperionPlugin {
             console.error("initOnce called more than once!!! rawActionBroadcaster already set!!");
             return;
         }
-        const broadcaster = new RawActionBroadcaster(this.baseConfig);
-        broadcaster.initUWS();
-        this.rawActionBroadcaster = broadcaster;
+        this.rawActionBroadcaster = new RawActionBroadcaster(this.baseConfig);
     }
 
     addRoutes(server: FastifyInstance): void {

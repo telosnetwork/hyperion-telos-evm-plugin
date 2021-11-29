@@ -9,6 +9,7 @@ export default class RawActionBroadcaster {
     constructor(config: TelosEvmConfig) {
         this.config = config;
         this.initUWS();
+        this.setupIPC();
     }
 
     initUWS() {
@@ -31,6 +32,17 @@ export default class RawActionBroadcaster {
                 console.log('Failed to listen to port ' + port);
             }
         });
+    }
+
+    setupIPC() {
+        process.on('message', (msg: any) => {
+            switch (msg.event) {
+                case 'evm_transaction': {
+                    console.log("RECEIVED EVM TRX: " + JSON.stringify(msg));
+                    break;
+                }
+            }
+        })
     }
 
     broadcastRaw(rawAction) {
