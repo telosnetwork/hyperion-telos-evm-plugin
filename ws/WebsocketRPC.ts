@@ -19,6 +19,7 @@ export default class WebsocketRPC {
         this.initUWS();
         this.initWSClient();
         this.rpcHandlerContainer = rpcHandlerContainer;
+        this.subscriptions = new Map();
     }
 
     initWSClient() {
@@ -79,9 +80,14 @@ export default class WebsocketRPC {
         });
     }
 
+    makeResponse(originalMessage, result) {
+        return {"jsonrpc": "2.0", result, id: originalMessage.id};
+    }
+
     makeError(message, id=null, code=-32600) {
         return {"jsonrpc": "2.0", "error": {code, message}, id};
     }
+
     async handleMessage(ws, msg) {
         const buffer = Buffer.from(msg);
         const string = buffer.toString();
@@ -124,6 +130,7 @@ export default class WebsocketRPC {
         }
 
         this.subscriptions.get(subscriptionId).addWs(ws);
+        ws.send(JSON.stringify(this.makeResponse(subscriptionId, msgObj)));
     }
 
     handleIndexerMessage(data) {
