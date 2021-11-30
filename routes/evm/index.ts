@@ -1644,7 +1644,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		 const { ip, origin, usage, limit } = clientInfo;
 		if (Array.isArray(payload)) {
 			if (payload.length == 0)
-				return {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}
+				return
 
 			const tRef = process.hrtime.bigint();
 
