@@ -80,7 +80,7 @@ export default class WebsocketRPC {
         });
     }
 
-    makeResponse(originalMessage, result) {
+    makeResponse(result, originalMessage) {
         return {"jsonrpc": "2.0", result, id: originalMessage.id};
     }
 
@@ -134,9 +134,9 @@ export default class WebsocketRPC {
     }
 
     handleIndexerMessage(data) {
-        console.log("GOT DATA: " + data);
+        const dataObj = JSON.parse(data.toString());
         for (const [subId, sub] of this.subscriptions) {
-            sub.handleRawAction(data);
+            sub.handleRawAction(dataObj);
         }
     }
 
