@@ -67,3 +67,71 @@ export function buildLogsObject(logs: any[], blHash: string, blNumber: string, t
     }
     return _logs;
 }
+
+export function makeLogObject(rawActionDocument, log, forSubscription) {
+    let baseLogObj = {
+        address: '0x' + log.address,
+        blockHash: '0x' + rawActionDocument['@raw']['block_hash'],
+        blockNumber: numToHex(rawActionDocument['@raw']['block']),
+        data: '0x' + log.data,
+        logIndex: numToHex(log.logIndex),
+        topics: log.topics.map(t => '0x' + t.padStart(64, '0')),
+        transactionHash: rawActionDocument['@raw']['hash'],
+        transactionIndex: numToHex(rawActionDocument['@raw']['trx_index'])
+    }
+
+    if (forSubscription)
+        return baseLogObj;
+
+    return Object.assign(baseLogObj, {
+        removed: false,
+    });
+}
+
+export function logFilterMatch(log, addressFilter, topicsFilter) {
+    if (addressFilter) {
+        let thisAddr = log.address.toLowerCase();
+        if (Array.isArray(addressFilter) && !addressFilter.includes(thisAddr)) {
+            // console.log('filter out by addressFilter as array');
+            return false;
+        }
+
+        if (!Array.isArray(addressFilter) && thisAddr != addressFilter) {
+            // console.log('filter out by addressFilter as string');
+            return false;
+        }
+    }
+
+    if (topicsFilter) {
+        if (!hasTopics(log.topics, topicsFilter)) {
+            // console.log('filter out by topics');
+            return false;
+        }
+    }
+
+    return true;
+}
+
+export function hasTopics(topics: string[], topicsFilter: string[]) {
+    const topicsFiltered = [];
+    // console.log(`filtering ${JSON.stringify(topics)} by filter: ${JSON.stringify(topicsFilter)}`);
+    topicsFilter = topicsFilter.map(t => {
+        if (t.startsWith('0x'))
+            t = t.slice(2);
+
+        return t.replace(/^0*``/, '');
+    })
+
+    for (const [index,topic] of topicsFilter.entries()) {
+        if (topic === null) {
+            topicsFiltered.push(true);
+        } else if (topic.includes(topics[index])) {
+            topicsFiltered.push(true);
+        } else if (topics[index] === topic) {
+            topicsFiltered.push(true);
+        } else {
+            topicsFiltered.push(false);
+        }
+    }
+    return topicsFiltered.every(t => t === true);
+}

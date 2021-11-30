@@ -1,7 +1,7 @@
 import uWS, {TemplatedApp} from "uWebSockets.js";
 import {TelosEvmConfig} from "../types";
 
-export default class RawActionBroadcaster {
+export default class RPCBroadcaster {
 
     config: TelosEvmConfig
     broadcastServer: TemplatedApp

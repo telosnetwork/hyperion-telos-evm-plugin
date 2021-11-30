@@ -16,7 +16,7 @@ const BN = require('bn.js');
 const createKeccakHash = require('keccak');
 const {TelosEvmApi} = require('@telosnetwork/telosevm-js');
 const {Signature} = require('eosjs-ecc');
-import RawActionBroadcaster from "./ws/RawActionBroadcaster";
+import RPCBroadcaster from "./ws/RPCBroadcaster";
 import {TelosEvmConfig} from "./types";
 import WebsocketRPC from "./ws/WebsocketRPC";
 
@@ -38,7 +38,7 @@ export default class TelosEvm extends HyperionPlugin {
     hardfork = 'istanbul';
     counter = 0;
     pluginConfig: TelosEvmConfig;
-    rawActionBroadcaster: RawActionBroadcaster;
+    rpcBroadcaster: RPCBroadcaster;
     websocketRPC: WebsocketRPC
 
     constructor(config: TelosEvmConfig) {
@@ -367,7 +367,9 @@ export default class TelosEvm extends HyperionPlugin {
             handler: async streamEvent => {
                 const headers = streamEvent.properties.headers;
                 if (headers) {
-                    if (headers.event === 'trace' && headers.account === 'eosio.evm' && headers.name === 'raw') {
+                    if (headers.event === 'delta') {
+                        console.log("DELTA HEADERS: " + JSON.stringify(headers));
+                    } else if (headers.event === 'trace' && headers.account === 'eosio.evm' && headers.name === 'raw') {
                         if (streamEvent.content) {
                             const evPayload = {
                                 event: 'evm_transaction',
@@ -384,16 +386,16 @@ export default class TelosEvm extends HyperionPlugin {
 
     initOnce() {
         super.initOnce();
-        if (this.rawActionBroadcaster) {
-            console.error("initOnce called more than once!!! rawActionBroadcaster already set!!");
+        if (this.rpcBroadcaster) {
+            console.error("initOnce called more than once!!! rpcBroadcaster already set!!");
             return;
         }
-        this.rawActionBroadcaster = new RawActionBroadcaster(this.baseConfig);
+        this.rpcBroadcaster = new RPCBroadcaster(this.baseConfig);
     }
 
     initHandlerMap(): any {
         return {
-            'evm_transaction': (msg) => this.rawActionBroadcaster.broadcastRaw(msg.actionTrace)
+            'evm_transaction': (msg) => this.rpcBroadcaster.broadcastRaw(msg.actionTrace)
         };
     }
 
