@@ -408,12 +408,13 @@ export default class TelosEvm extends HyperionPlugin {
             signingPermission: this.pluginConfig.signer_permission
         }));
         server.evm.setDebug(this.pluginConfig.debug);
+        server.decorate('rpcPayloadHandlerContainer', {});
         server.register(autoLoad, {
             dir: join(__dirname, 'routes'),
             dirNameRoutePrefix: false,
             options: this.pluginConfig
         });
-        this.websocketRPC = new WebsocketRPC(this.pluginConfig);
+        this.websocketRPC = new WebsocketRPC(this.pluginConfig, server.rpcPayloadHandlerContainer.handler);
     }
 
     logDebug(msg: String): void {

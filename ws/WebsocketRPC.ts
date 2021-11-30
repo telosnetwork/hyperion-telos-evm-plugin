@@ -8,11 +8,13 @@ export default class WebsocketRPC {
     config: TelosEvmConfig
     websocketRPC: TemplatedApp
     websocketClient: WebSocket
+    rpcHandler: any
 
-    constructor(config: TelosEvmConfig) {
+    constructor(config: TelosEvmConfig, rpcHandler: any) {
         this.config = config;
         this.initUWS();
         this.initWSClient();
+        this.rpcHandler = rpcHandler;
     }
 
     initWSClient() {
@@ -31,7 +33,7 @@ export default class WebsocketRPC {
             open: () => {
             },
             message: async (msg) => {
-                const rpcResponse = await this.config.rpcPayloadHandler(msg);
+                const rpcResponse = await this.rpcHandler(msg);
                 console.log("GOT RESPONSE: ");
                 console.dir(rpcResponse);
             },
