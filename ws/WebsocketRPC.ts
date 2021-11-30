@@ -34,14 +34,41 @@ export default class WebsocketRPC {
         this.websocketRPC = uWS.App({}).ws('/evm', {
             compression: 0,
             maxPayloadLength: 16 * 1024 * 1024,
-            open: () => {
+            upgrade: (res, req, context) => {
+                let ip = req.getHeader('x-forwarded-for') || '';
+                if (Array.isArray(ip))
+                    ip = ip[0] || ''
+
+                if (ip.includes(','))
+                    ip = ip.substr(0, ip.indexOf(','));
+
+                let origin;
+                if (req.getHeader('origin') === 'chrome-extension://nkbihfbeogaeaoehlefnkodbefgpgknn') {
+                    origin = 'MetaMask';
+                } else {
+                    if (req.getHeader('origin')) {
+                        origin = req.getHeader('origin');
+                    } else {
+                        origin = req.getHeader('user-agent');
+                    }
+                }
+
+                res.upgrade(
+                   { clientInfo: {ip, origin} },
+                    req.getHeader('sec-websocket-key'),
+                    req.getHeader('sec-websocket-protocol'),
+                    req.getHeader('sec-websocket-extensions'),
+                    context
+                )
             },
             message: (ws, msg) => {
                 this.handleMessage(ws, msg);
             },
             drain: () => {
             },
-            close: () => {
+            close: (ws) => {
+                for (const [subId, sub] of this.subscriptions)
+                    sub.removeWs(ws)
             },
         }).listen(host, port, (token) => {
             if (token) {
@@ -71,12 +98,7 @@ export default class WebsocketRPC {
                 return;
             }
 
-            const ip = Buffer.from(ws.getRemoteAddressAsText()).toString();
-            const origin = "RPCWebsocketClient";
-            const usage = 0;
-            const limit = 0;
-            const clientInfo = { ip, origin, usage, limit };
-            const rpcResponse = await this.rpcHandlerContainer.handler(msgObj, clientInfo);
+            const rpcResponse = await this.rpcHandlerContainer.handler(msgObj, ws.clientInfo);
             ws.send(JSON.stringify(rpcResponse));
         } catch (e) {
             console.error(`Failed to parse websocket message: ${string} error: ${e.message}`);
