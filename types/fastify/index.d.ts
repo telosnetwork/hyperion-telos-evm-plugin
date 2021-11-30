@@ -8,6 +8,7 @@ interface EOSJS {
 declare module 'fastify' {
     export interface FastifyInstance {
         evm: any;
+        rpcPayloadHandlerContainer: any;
         cachingApi: any;
     }
 }
