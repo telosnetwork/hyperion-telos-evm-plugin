@@ -17,7 +17,7 @@ export default class LogSubscription extends Subscription {
 
     static makeId(filter) {
         const toHash = JSON.stringify({
-            address: filter.address ? filter.address.sort() : [],
+            address: filter.address ? Array.isArray(filter.address) ? filter.address.sort() : filter.address : [],
             topics: filter.topics ? filter.topics : []
         })
 

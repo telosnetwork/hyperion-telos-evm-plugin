@@ -1689,6 +1689,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			ip, origin, usage, limit
 		}
 
-		doRpcPayload(request.body, clientInfo, reply);
+		return await doRpcPayload(request.body, clientInfo, reply);
 	});
 }
