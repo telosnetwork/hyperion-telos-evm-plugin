@@ -1,7 +1,9 @@
 import uWS, {TemplatedApp} from "uWebSockets.js";
 import WebSocket from "ws";
 import {TelosEvmConfig} from "../types";
-import fastify, {FastifyInstance} from "fastify";
+import {keccak256} from "ethereumjs-util";
+import Subscription from "./Subscription";
+import LogSubscription from "./LogSubscription";
 
 export default class WebsocketRPC {
 
@@ -9,6 +11,8 @@ export default class WebsocketRPC {
     websocketRPC: TemplatedApp
     websocketClient: WebSocket
     rpcHandlerContainer: any
+    subscriptions: Map<string, Subscription>
+
 
     constructor(config: TelosEvmConfig, rpcHandlerContainer: any) {
         this.config = config;
@@ -48,30 +52,63 @@ export default class WebsocketRPC {
         });
     }
 
+    makeError(message, id=null, code=-32600) {
+        return {"jsonrpc": "2.0", "error": {code, message}, id};
+    }
     async handleMessage(ws, msg) {
         const buffer = Buffer.from(msg);
         const string = buffer.toString();
         try {
             const msgObj = JSON.parse(string);
             if (!msgObj.method) {
-                ws.send({"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request, no method specified"}, "id": msgObj.id ? msgObj.id : null})
+                ws.send(this.makeError("Invalid Request, no method specified", msgObj.id ? msgObj.id : null));
+                return;
+            }
+
+            const method = msgObj.method;
+            if (method == "eth_subscribe" || method === "eth_unsubscribe") {
+                this.handleSubscription(ws, msgObj);
                 return;
             }
 
             const ip = Buffer.from(ws.getRemoteAddressAsText()).toString();
-            const origin = "Websocket Client";
+            const origin = "RPCWebsocketClient";
             const usage = 0;
             const limit = 0;
             const clientInfo = { ip, origin, usage, limit };
-            const rpcResponse = await this.rpcHandlerContainer.handler(msg, clientInfo);
+            const rpcResponse = await this.rpcHandlerContainer.handler(msgObj, clientInfo);
             ws.send(JSON.stringify(rpcResponse));
         } catch (e) {
             console.error(`Failed to parse websocket message: ${string} error: ${e.message}`);
         }
     }
 
+    async handleSubscription(ws, msgObj) {
+        switch (msgObj.params[0]) {
+            case 'logs':
+                this.handleLogSubscription(ws, msgObj);
+                break;
+            default:
+                ws.send(JSON.stringify(this.makeError(`Subscription type ${msgObj.params[0]} is not supported`, msgObj.id)));
+                break;
+        }
+    }
+
+    async handleLogSubscription(ws, msgObj) {
+        const filter = msgObj.params[1];
+        const subscriptionId = LogSubscription.makeId(filter);
+        if (!this.subscriptions.has(subscriptionId)) {
+            this.subscriptions.set(subscriptionId, new LogSubscription(this.websocketRPC, subscriptionId, filter))
+        }
+
+        this.subscriptions.get(subscriptionId).addWs(ws);
+    }
+
     handleIndexerMessage(data) {
         console.log("GOT DATA: " + data);
+        for (const [subId, sub] of this.subscriptions) {
+            sub.handleRawAction(data);
+        }
     }
 
 
