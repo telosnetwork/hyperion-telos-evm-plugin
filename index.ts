@@ -367,8 +367,14 @@ export default class TelosEvm extends HyperionPlugin {
             handler: async streamEvent => {
                 const headers = streamEvent.properties.headers;
                 if (headers) {
-                    if (headers.event === 'delta') {
-                        console.log("DELTA HEADERS: " + JSON.stringify(headers));
+                    if (headers.event === 'delta' && headers.code === 'eosio' && headers.table === 'global') {
+                        if (streamEvent.content) {
+                            const evPayload = {
+                                event: 'evm_block',
+                                globalDelta: streamEvent.content.toString()
+                            };
+                            process.send(evPayload);
+                        }
                     } else if (headers.event === 'trace' && headers.account === 'eosio.evm' && headers.name === 'raw') {
                         if (streamEvent.content) {
                             const evPayload = {
@@ -395,7 +401,8 @@ export default class TelosEvm extends HyperionPlugin {
 
     initHandlerMap(): any {
         return {
-            'evm_transaction': (msg) => this.rpcBroadcaster.broadcastRaw(msg.actionTrace)
+            'evm_transaction': (msg) => this.rpcBroadcaster.broadcastRaw(msg.actionTrace),
+            'evm_block': (msg) => this.rpcBroadcaster.handleGlobalDelta(msg.globalDelta)
         };
     }
 
