@@ -1,6 +1,7 @@
 import Subscription from "./Subscription";
 import { TemplatedApp, WebSocket } from "uWebSockets.js";
 import {keccak256} from "ethereumjs-util";
+import {logFilterMatch, makeLogObject} from "../utils";
 
 export default class LogSubscription extends Subscription {
 
@@ -13,6 +14,31 @@ export default class LogSubscription extends Subscription {
 
     handleRawAction(rawAction: any): void {
         console.log(`Subscription ${this.id} got rawAction: ${JSON.stringify(rawAction, null, 4)}`)
+        const logs = rawAction["@raw"].logs || [];
+        let logCount = 0;
+        this.filterMatches(logs).forEach(log => {
+            log.logIndex = logCount++;
+            this.publish(JSON.stringify(this.makeLogSubscription(rawAction, log)));
+        });
+    }
+
+    filterMatches(logs): Array<any> {
+        const addrFilter = this.filter.address || [];
+        const topicFilter = this.filter.topics || [];
+        return logs.filter(log => {
+            return logFilterMatch(log, addrFilter, topicFilter);
+        });
+    }
+
+    makeLogSubscription(rawAction: any, log: any): any {
+        return {
+            "jsonrpc": "2.0",
+            "method": "eth_subscription",
+            "params": {
+                "subscription": this.getId(),
+                "result": makeLogObject(rawAction, log, true)
+            }
+        };
     }
 
     static makeId(filter) {
@@ -21,7 +47,7 @@ export default class LogSubscription extends Subscription {
             topics: filter.topics ? filter.topics : []
         })
 
-        return `0x${keccak256(Buffer.from(toHash)).slice(0, 32)}`;
+        return `0x${keccak256(Buffer.from(toHash)).toString('hex').slice(0, 32)}`;
     }
 
 }

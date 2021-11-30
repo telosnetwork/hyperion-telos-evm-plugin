@@ -1,14 +1,7 @@
 import {FastifyInstance, FastifyReply, FastifyRequest} from "fastify";
 import {TelosEvmConfig} from "../../types";
 import Bloom from "../../bloom";
-import {
-	toChecksumAddress,
-	blockHexToHash,
-	numToHex,
-	buildLogsObject,
-	logFilterMatch,
-	makeLogObject,
-} from "../../utils"
+import {toChecksumAddress, blockHexToHash, numToHex, buildLogsObject, logFilterMatch, makeLogObject} from "../../utils"
 import DebugLogger from "../../debugLogging";
 import {AuthorityProvider, AuthorityProviderArgs, BinaryAbi} from 'eosjs/dist/eosjs-api-interfaces';
 import {PushTransactionArgs} from 'eosjs/dist/eosjs-rpc-interfaces'
@@ -780,10 +773,10 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			if (account.code && account.code.length > 0) {
 				return "0x" + Buffer.from(account.code).toString("hex");
 			} else {
-				return "0x";
+				return "0x0";
 			}
 		} catch (e) {
-			return "0x";
+			return "0x0";
 		}
 	});
 
@@ -1303,7 +1296,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				size: 2000,
 				body: {
 					query: queryBody,
-					sort: [{ "global_sequence": { order: "asc" } }]
+					sort: [{ "@raw.trx_index": { order: "asc" } }]
 				}
 			});
 
@@ -1340,7 +1333,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 			return results;
 		} catch (e) {
-			console.log(`ERROR while filtering log query result: ${e.message}`);
+			console.log(JSON.stringify(e, null, 2));
 			return [];
 		}
 	});
