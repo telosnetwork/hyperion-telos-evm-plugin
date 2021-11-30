@@ -6,6 +6,7 @@ export default class RPCBroadcaster {
     config: TelosEvmConfig
     broadcastServer: TemplatedApp
 
+
     constructor(config: TelosEvmConfig) {
         this.config = config;
         this.initUWS();
@@ -40,5 +41,15 @@ export default class RPCBroadcaster {
         }
 
         this.broadcastServer.publish('raw', rawAction);
+    }
+
+    handleGlobalDelta(globalDelta) {
+        if (!this.broadcastServer) {
+            console.error("RawActionBroadcaster.broadcastRaw was called before broadcastServer was set");
+            return;
+        }
+
+        console.log("GLOBAL DELTA IS: " + globalDelta);
+
     }
 }
