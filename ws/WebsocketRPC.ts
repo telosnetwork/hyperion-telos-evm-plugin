@@ -73,9 +73,9 @@ export default class WebsocketRPC {
             drain: () => {
             },
             close: (ws) => {
-                this.headSubscription.removeWs(ws);
+                this.headSubscription.removeWs(ws, true);
                 for (const [subId, sub] of this.logSubscriptions)
-                    sub.removeWs(ws)
+                    sub.removeWs(ws, true)
             },
         }).listen(host, port, (token) => {
             if (token) {
@@ -117,11 +117,11 @@ export default class WebsocketRPC {
                 }
                 const subscriptionId = msgObj.params[0];
                 if (subscriptionId === NEW_HEADS_SUBSCRIPTION) {
-                    this.headSubscription.removeWs(ws);
+                    this.headSubscription.removeWs(ws, false);
                 } else {
                     this.logSubscriptions.forEach((sub) => {
                         if (sub.getId() === subscriptionId)
-                            sub.removeWs(ws);
+                            sub.removeWs(ws, false);
 
                         if (!sub.hasClients())
                             this.logSubscriptions.delete(sub.getId());

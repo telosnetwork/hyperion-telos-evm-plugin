@@ -19,11 +19,16 @@ export default class Subscription {
         this.wsClients.set(ws, true);
     }
 
-    removeWs(ws: WebSocket): boolean {
-        if (ws.isSubscribed(this.id))
-            ws.unsubscribe(this.id);
+    removeWs(ws: WebSocket, isClosed: boolean): boolean {
+        try {
+            if (!isClosed && ws.isSubscribed(this.id))
+                ws.unsubscribe(this.id);
 
-        return this.wsClients.delete(ws);
+            return this.wsClients.delete(ws);
+        } catch (e) {
+            console.error(`Error while removing websocket: ${e.message}`);
+            return false;
+        }
     }
 
     hasClients(): boolean {
@@ -35,7 +40,11 @@ export default class Subscription {
     }
 
     publish(msg: string) {
-        this.wsServer.publish(this.id, msg);
+        try {
+            this.wsServer.publish(this.id, msg);
+        } catch (e) {
+            console.error(`Error while publishing ${e.message}`);
+        }
     }
 
 }
