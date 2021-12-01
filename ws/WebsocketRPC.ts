@@ -5,13 +5,16 @@ import {keccak256} from "ethereumjs-util";
 import Subscription from "./Subscription";
 import LogSubscription from "./LogSubscription";
 
+const NEW_HEADS_SUBSCRIPTION = "0x9ce59a13059e417087c02d3236a0b1cd"
+
 export default class WebsocketRPC {
 
     config: TelosEvmConfig
     websocketRPC: TemplatedApp
     websocketClient: WebSocket
     rpcHandlerContainer: any
-    subscriptions: Map<string, Subscription>
+    logSubscriptions: Map<string, LogSubscription>
+    headSubscription: Subscription
 
 
     constructor(config: TelosEvmConfig, rpcHandlerContainer: any) {
@@ -19,7 +22,8 @@ export default class WebsocketRPC {
         this.initUWS();
         this.initWSClient();
         this.rpcHandlerContainer = rpcHandlerContainer;
-        this.subscriptions = new Map();
+        this.logSubscriptions = new Map();
+        this.headSubscription = new Subscription(this.websocketRPC, NEW_HEADS_SUBSCRIPTION);
     }
 
     initWSClient() {
@@ -68,7 +72,7 @@ export default class WebsocketRPC {
             drain: () => {
             },
             close: (ws) => {
-                for (const [subId, sub] of this.subscriptions)
+                for (const [subId, sub] of this.logSubscriptions)
                     sub.removeWs(ws)
             },
         }).listen(host, port, (token) => {
@@ -99,9 +103,22 @@ export default class WebsocketRPC {
             }
 
             const method = msgObj.method;
-            if (method == "eth_subscribe" || method === "eth_unsubscribe") {
+            if (method == "eth_subscribe") {
                 this.handleSubscription(ws, msgObj);
                 return;
+            }
+
+            if (method === "eth_unsubscribe") {
+                if (!msgObj?.params?.length) {
+                    ws.send(JSON.stringify(this.makeError("Subscription ID should be provided as first parameter", msgObj.id)))
+                    return;
+                }
+                const subscriptionId = msgObj.params[0];
+                this.logSubscriptions.forEach((sub) => {
+                    sub.removeWs(ws);
+                    if (!sub.hasClients())
+                        this.logSubscriptions.delete(sub.getId());
+                });
             }
 
             const rpcResponse = await this.rpcHandlerContainer.handler(msgObj, ws.clientInfo);
@@ -116,6 +133,9 @@ export default class WebsocketRPC {
             case 'logs':
                 this.handleLogSubscription(ws, msgObj);
                 break;
+            case 'newHeads':
+                this.handleNewHeadsSubscription(ws, msgObj);
+                break;
             default:
                 ws.send(JSON.stringify(this.makeError(`Subscription type ${msgObj.params[0]} is not supported`, msgObj.id)));
                 break;
@@ -125,20 +145,41 @@ export default class WebsocketRPC {
     async handleLogSubscription(ws, msgObj) {
         const filter = msgObj.params[1];
         const subscriptionId = LogSubscription.makeId(filter);
-        if (!this.subscriptions.has(subscriptionId)) {
-            this.subscriptions.set(subscriptionId, new LogSubscription(this.websocketRPC, subscriptionId, filter))
+        if (!this.logSubscriptions.has(subscriptionId)) {
+            this.logSubscriptions.set(subscriptionId, new LogSubscription(this.websocketRPC, subscriptionId, filter))
         }
 
-        this.subscriptions.get(subscriptionId).addWs(ws);
+        this.logSubscriptions.get(subscriptionId).addWs(ws);
         ws.send(JSON.stringify(this.makeResponse(subscriptionId, msgObj)));
+    }
+
+    async handleNewHeadsSubscription(ws, msgObj) {
+        this.headSubscription.addWs(ws);
+        ws.send(JSON.stringify(this.makeResponse(this.headSubscription.getId(), msgObj)));
     }
 
     handleIndexerMessage(data) {
         const dataObj = JSON.parse(data.toString());
-        for (const [subId, sub] of this.subscriptions) {
-            sub.handleRawAction(dataObj);
+        switch (dataObj.type) {
+            case 'raw':
+                this.handleRawMessage(dataObj.data);
+                break;
+            case 'head':
+                this.handleHeadMessage(dataObj.data);
+                break;
+            default:
+                break;
         }
     }
 
+    handleRawMessage(data) {
+        for (const [subId, sub] of this.logSubscriptions) {
+            sub.handleRawAction(data);
+        }
+    }
+
+    handleHeadMessage(data) {
+        this.headSubscription.publish(data);
+    }
 
 }

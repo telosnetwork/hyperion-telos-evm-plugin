@@ -1,6 +1,6 @@
 import {TemplatedApp, WebSocket} from "uWebSockets.js";
 
-export default abstract class Subscription {
+export default class Subscription {
 
     wsServer: TemplatedApp
     wsClients: Map<WebSocket, any>
@@ -26,6 +26,10 @@ export default abstract class Subscription {
         return this.wsClients.delete(ws);
     }
 
+    hasClients(): boolean {
+        return this.wsClients.size > 0;
+    }
+
     getId(): string {
         return this.id;
     }
@@ -33,8 +37,5 @@ export default abstract class Subscription {
     publish(msg: string) {
         this.wsServer.publish(this.id, msg);
     }
-
-    abstract handleRawAction(rawAction: any): void
-
 
 }

@@ -9,7 +9,7 @@ import {HyperionAction} from "../../../interfaces/hyperion-action";
 import {HyperionDelta} from "../../../interfaces/hyperion-delta";
 import Bloom from "./bloom";
 import {hLog} from "../../../helpers/common_functions";
-import {toChecksumAddress} from "./utils"
+import {blockHexToHash, toChecksumAddress} from "./utils"
 
 
 const BN = require('bn.js');
@@ -74,7 +74,7 @@ export default class TelosEvm extends HyperionPlugin {
             },
             handler: async (delta: HyperionDelta) => {
                 const blockHex = (delta["@global"].block_num as number).toString(16);
-                const blockHash = createKeccakHash('keccak256').update(blockHex).digest('hex');
+                const blockHash = blockHexToHash(blockHex);
 
                 delta['@evmBlockHash'] = blockHash;
             }

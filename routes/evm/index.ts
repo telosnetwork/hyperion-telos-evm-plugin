@@ -1,7 +1,16 @@
 import {FastifyInstance, FastifyReply, FastifyRequest} from "fastify";
 import {TelosEvmConfig} from "../../types";
 import Bloom from "../../bloom";
-import {toChecksumAddress, blockHexToHash, numToHex, buildLogsObject, logFilterMatch, makeLogObject} from "../../utils"
+import {
+	toChecksumAddress,
+	blockHexToHash,
+	numToHex,
+	buildLogsObject,
+	logFilterMatch,
+	makeLogObject,
+	BLOCK_TEMPLATE,
+	getParentBlockHash
+} from "../../utils"
 import DebugLogger from "../../debugLogging";
 import {AuthorityProvider, AuthorityProviderArgs, BinaryAbi} from 'eosjs/dist/eosjs-api-interfaces';
 import {PushTransactionArgs} from 'eosjs/dist/eosjs-rpc-interfaces'
@@ -27,28 +36,6 @@ const REVERT_PANIC_SELECTOR = '0x4e487b71'
 
 const EOSIO_ASSERTION_PREFIX = 'assertion failure with message: '
 
-const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
-const NULL_HASH = '0x0000000000000000000000000000000000000000000000000000000000000000';
-const EMPTY_LOGS = '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000';
-// 1,000,000,000
-const BLOCK_GAS_LIMIT = '0x3b9aca00'
-
-const BLOCK_TEMPLATE = {
-	difficulty: "0x0",
-	extraData: NULL_HASH,
-	miner: ZERO_ADDR,
-	mixHash: NULL_HASH,
-	nonce: "0x0000000000000000",
-	parentHash: NULL_HASH,
-	receiptsRoot: NULL_HASH,
-	sha3Uncles: NULL_HASH,
-	gasLimit: BLOCK_GAS_LIMIT,
-	size: "0x0",
-	stateRoot: NULL_HASH,
-	totalDifficulty: "0x0",
-	transactionsRoot: NULL_HASH,
-	uncles: []
-};
 
 function parseRevertReason(revertOutput) {
     if (!revertOutput || revertOutput.length < 138) {
@@ -368,12 +355,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		}
 	}
 	*/
-
-	function getParentBlockHash(blockNumberHex: string) {
-		let blockNumber = parseInt(blockNumberHex, 16);
-		let parentBlockHex = (blockNumber - 1).toString(16);
-		return blockHexToHash(parentBlockHex);
-	}
 
 	async function emptyBlockFromNumber(blockNumber: number) {
 		try {
