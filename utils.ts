@@ -41,7 +41,7 @@ const BLOCK_TEMPLATE =
         uncles: []
     }, NEW_HEADS_TEMPLATE);
 
-export { BLOCK_TEMPLATE, NEW_HEADS_TEMPLATE }
+export { BLOCK_TEMPLATE, NEW_HEADS_TEMPLATE, EMPTY_LOGS }
 
 export function numToHex(input: number | string) {
     if (typeof input === 'number') {

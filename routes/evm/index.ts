@@ -9,7 +9,7 @@ import {
 	logFilterMatch,
 	makeLogObject,
 	BLOCK_TEMPLATE,
-	getParentBlockHash
+	getParentBlockHash, EMPTY_LOGS
 } from "../../utils"
 import DebugLogger from "../../debugLogging";
 import {AuthorityProvider, AuthorityProviderArgs, BinaryAbi} from 'eosjs/dist/eosjs-api-interfaces';
