@@ -49,7 +49,8 @@ export default class RPCBroadcaster {
         });
     }
 
-    broadcastRaw(rawAction: any) {
+    broadcastRaw(msg: string) {
+        const rawAction = JSON.parse(msg);
         if (!this.broadcastServer) {
             console.error("RawActionBroadcaster.broadcastRaw was called before broadcastServer was set");
             return;
@@ -66,13 +67,13 @@ export default class RPCBroadcaster {
             this.currentBlock.gasUsed = gasUsed;
 
         if (raw['logsBloom']){
-            this.currentBlock.bloom.or(new Bloom(Buffer.from(raw['logsBloom'], "hex")));
+            this.currentBlock.logsBloom.or(new Bloom(Buffer.from(raw['logsBloom'], "hex")));
         }
 
         this.broadcastData('raw', rawAction);
     }
 
-    handleGlobalDelta(globalDelta: any) {
+    handleGlobalDelta(msg: string) {
         /*
        GLOBAL DELTA IS: {"code":"eosio","scope":"eosio","table":"global","primary_key":"7235159537265672192","payer":"eosio","@timestamp":"2021-11-30T22:52:35.000"
        ,"present":1,"block_num":120766,"block_id":"0001d7beab41d9ee734ef6b2796a2cd605374934cc0953514225957c0614614f","@global":{"max_block_net_usage":"1048576",
@@ -85,6 +86,7 @@ export default class RPCBroadcaster {
        "last_name_close":"2000-01-01T00:00:00.000","block_num":120759,"last_claimrewards":0,"next_payment":0,"new_ram_per_block":0,"last_ram_increase":"2021-11-30T06:06:21.500",
        "last_block_num":"2000-01-01T00:00:00.000","total_producer_votepay_share":0,"revision":0},"@evmBlockHash":"6cf32cd74239875f9e519afabdade4e0b46afce01fb38ce053ab933ade49f89d"}
          */
+        const globalDelta = JSON.parse(msg);
         if (!this.broadcastServer) {
             console.error("RawActionBroadcaster.broadcastRaw was called before broadcastServer was set");
             return;
@@ -104,7 +106,7 @@ export default class RPCBroadcaster {
     private broadcastBlock() {
         const head = Object.assign({}, NEW_HEADS_TEMPLATE, {
             gasUsed: numToHex(this.currentBlock.gasUsed),
-            logsBloom: "0x" + this.currentBlock.bloom.bitvector.toString("hex"),
+            logsBloom: "0x" + this.currentBlock.logsBloom.bitvector.toString("hex"),
             number: this.currentBlock.blockHex,
             parentHash: getParentBlockHash(this.currentBlock.blockHex),
             timestamp: "0x" + this.currentBlock.timestamp.toString(16),

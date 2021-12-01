@@ -72,6 +72,7 @@ export default class WebsocketRPC {
             drain: () => {
             },
             close: (ws) => {
+                this.headSubscription.removeWs(ws);
                 for (const [subId, sub] of this.logSubscriptions)
                     sub.removeWs(ws)
             },
@@ -115,10 +116,14 @@ export default class WebsocketRPC {
                 }
                 const subscriptionId = msgObj.params[0];
                 this.logSubscriptions.forEach((sub) => {
-                    sub.removeWs(ws);
+                    if (sub.getId() === subscriptionId)
+                        sub.removeWs(ws);
+
                     if (!sub.hasClients())
                         this.logSubscriptions.delete(sub.getId());
                 });
+                ws.send(JSON.stringify(this.makeResponse(true, msgObj)));
+                return;
             }
 
             const rpcResponse = await this.rpcHandlerContainer.handler(msgObj, ws.clientInfo);
