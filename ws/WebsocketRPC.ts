@@ -1,5 +1,6 @@
 import uWS, {TemplatedApp} from "uWebSockets.js";
 import ReconnectingWebSocket from "reconnecting-websocket";
+import WebSocket from "ws";
 import {TelosEvmConfig} from "../types";
 import {keccak256} from "ethereumjs-util";
 import Subscription from "./Subscription";
@@ -27,7 +28,7 @@ export default class WebsocketRPC {
     }
 
     initWSClient() {
-        this.websocketClient = new ReconnectingWebSocket(this.config.indexerWebsocketUri);
+        this.websocketClient = new ReconnectingWebSocket(this.config.indexerWebsocketUri, [], {WebSocket});
         this.websocketClient.addEventListener('message', (data) => {
             this.handleIndexerMessage(data);
         })
