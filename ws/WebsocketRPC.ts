@@ -30,7 +30,7 @@ export default class WebsocketRPC {
     initWSClient() {
         this.websocketClient = new ReconnectingWebSocket(this.config.indexerWebsocketUri, [], {WebSocket});
         this.websocketClient.addEventListener('message', (data) => {
-            this.handleIndexerMessage(data);
+            this.handleIndexerMessage(data.data);
         })
     }
 
@@ -169,7 +169,7 @@ export default class WebsocketRPC {
     }
 
     handleIndexerMessage(data) {
-        const dataObj = JSON.parse(data.toString());
+        const dataObj = JSON.parse(data);
         switch (dataObj.type) {
             case 'raw':
                 this.handleRawMessage(dataObj.data);
