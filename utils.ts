@@ -12,6 +12,37 @@ export interface EthLog {
     transactionIndex: string;
 }
 
+
+const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
+const NULL_HASH = '0x0000000000000000000000000000000000000000000000000000000000000000';
+const EMPTY_LOGS = '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000';
+// 1,000,000,000
+const BLOCK_GAS_LIMIT = '0x3b9aca00'
+
+const NEW_HEADS_TEMPLATE =
+    {
+        difficulty: "0x0",
+        extraData: NULL_HASH,
+        gasLimit: BLOCK_GAS_LIMIT,
+        miner: ZERO_ADDR,
+        nonce: "0x0000000000000000",
+        parentHash: NULL_HASH,
+        receiptsRoot: NULL_HASH,
+        sha3Uncles: NULL_HASH,
+        stateRoot: NULL_HASH,
+        transactionsRoot: NULL_HASH,
+    };
+
+const BLOCK_TEMPLATE =
+    Object.assign({
+        mixHash: NULL_HASH,
+        size: "0x0",
+        totalDifficulty: "0x0",
+        uncles: []
+    }, NEW_HEADS_TEMPLATE);
+
+export { BLOCK_TEMPLATE, NEW_HEADS_TEMPLATE }
+
 export function numToHex(input: number | string) {
     if (typeof input === 'number') {
         return '0x' + input.toString(16)
@@ -40,6 +71,12 @@ export function toChecksumAddress(address) {
     }
 
     return ret
+}
+
+export function getParentBlockHash(blockNumberHex: string) {
+    let blockNumber = parseInt(blockNumberHex, 16);
+    let parentBlockHex = (blockNumber - 1).toString(16);
+    return blockHexToHash(parentBlockHex);
 }
 
 export function blockHexToHash(blockHex: string) {
