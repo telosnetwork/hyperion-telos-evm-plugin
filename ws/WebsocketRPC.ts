@@ -1,5 +1,5 @@
 import uWS, {TemplatedApp} from "uWebSockets.js";
-import WebSocket from "ws";
+import ReconnectingWebSocket from "reconnecting-websocket";
 import {TelosEvmConfig} from "../types";
 import {keccak256} from "ethereumjs-util";
 import Subscription from "./Subscription";
@@ -11,7 +11,7 @@ export default class WebsocketRPC {
 
     config: TelosEvmConfig
     websocketRPC: TemplatedApp
-    websocketClient: WebSocket
+    websocketClient: ReconnectingWebSocket
     rpcHandlerContainer: any
     logSubscriptions: Map<string, LogSubscription>
     headSubscription: Subscription
@@ -27,8 +27,8 @@ export default class WebsocketRPC {
     }
 
     initWSClient() {
-        this.websocketClient = new WebSocket(this.config.indexerWebsocketUri);
-        this.websocketClient.on('message', (data) => {
+        this.websocketClient = new ReconnectingWebSocket(this.config.indexerWebsocketUri);
+        this.websocketClient.addEventListener('message', (data) => {
             this.handleIndexerMessage(data);
         })
     }
@@ -115,13 +115,17 @@ export default class WebsocketRPC {
                     return;
                 }
                 const subscriptionId = msgObj.params[0];
-                this.logSubscriptions.forEach((sub) => {
-                    if (sub.getId() === subscriptionId)
-                        sub.removeWs(ws);
+                if (subscriptionId === NEW_HEADS_SUBSCRIPTION) {
+                    this.headSubscription.removeWs(ws);
+                } else {
+                    this.logSubscriptions.forEach((sub) => {
+                        if (sub.getId() === subscriptionId)
+                            sub.removeWs(ws);
 
-                    if (!sub.hasClients())
-                        this.logSubscriptions.delete(sub.getId());
-                });
+                        if (!sub.hasClients())
+                            this.logSubscriptions.delete(sub.getId());
+                    });
+                }
                 ws.send(JSON.stringify(this.makeResponse(true, msgObj)));
                 return;
             }

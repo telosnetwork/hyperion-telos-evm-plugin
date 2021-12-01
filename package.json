@@ -33,6 +33,7 @@
     "ethereumjs-abi": "^0.6.8",
     "ethereumjs-util": "^7.0.10",
     "keccak": "^3.0.2",
+    "reconnecting-websocket": "^4.4.0",
     "uWebSockets.js": "uNetworking/uWebSockets.js#v20.4.0",
     "ws": "^8.3.0"
   },
