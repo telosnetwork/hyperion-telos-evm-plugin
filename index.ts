@@ -74,7 +74,7 @@ export default class TelosEvm extends HyperionPlugin {
             },
             handler: async (delta: HyperionDelta) => {
                 const blockHex = (delta["@global"].block_num as number).toString(16);
-                const blockHash = blockHexToHash(blockHex);
+                const blockHash = blockHexToHash(blockHex, false);
 
                 delta['@evmBlockHash'] = blockHash;
             }
@@ -365,26 +365,30 @@ export default class TelosEvm extends HyperionPlugin {
         this.streamHandlers.push({
             event: 'trace',
             handler: async streamEvent => {
-                const headers = streamEvent.properties.headers;
-                if (headers) {
-                    if (headers.event === 'delta' && headers.code === 'eosio' && headers.table === 'global') {
-                        if (streamEvent.content) {
-                            const evPayload = {
-                                event: 'evm_block',
-                                globalDelta: streamEvent.content.toString()
-                            };
-                            process.send(evPayload);
-                        }
-                    } else if (headers.event === 'trace' && headers.account === 'eosio.evm' && headers.name === 'raw') {
-                        if (streamEvent.content) {
-                            const evPayload = {
-                                event: 'evm_transaction',
-                                actionTrace: streamEvent.content.toString()
+                try {
+                    const headers = streamEvent.properties.headers;
+                    if (headers) {
+                        if (headers.event === 'delta' && headers.code === 'eosio' && headers.table === 'global') {
+                            if (streamEvent.content) {
+                                const evPayload = {
+                                    event: 'evm_block',
+                                    globalDelta: streamEvent.content.toString()
+                                };
+                                process.send(evPayload);
+                            }
+                        } else if (headers.event === 'trace' && headers.account === 'eosio.evm' && headers.name === 'raw') {
+                            if (streamEvent.content) {
+                                const evPayload = {
+                                    event: 'evm_transaction',
+                                    actionTrace: streamEvent.content.toString()
 
-                            };
-                            process.send(evPayload);
+                                };
+                                process.send(evPayload);
+                            }
                         }
                     }
+                } catch (e) {
+                    console.log(`Error during stream handler: ${e.message}`)
                 }
             }
         });

@@ -79,8 +79,8 @@ export function getParentBlockHash(blockNumberHex: string) {
     return blockHexToHash(parentBlockHex);
 }
 
-export function blockHexToHash(blockHex: string) {
-    return `0x${createKeccakHash('keccak256').update(blockHex.replace(/^0x/, '')).digest('hex')}`;
+export function blockHexToHash(blockHex: string, zeroXPrefix: boolean = false) {
+    return `${zeroXPrefix ? '0x' : ''}${createKeccakHash('keccak256').update(blockHex.replace(/^0x/, '')).digest('hex')}`;
 }
 
 export function buildLogsObject(logs: any[], blHash: string, blNumber: string, txHash: string, txIndex: string): EthLog[] {
