@@ -79,7 +79,7 @@ export function getParentBlockHash(blockNumberHex: string) {
     return blockHexToHash(parentBlockHex);
 }
 
-export function blockHexToHash(blockHex: string, zeroXPrefix: boolean = false) {
+export function blockHexToHash(blockHex: string, zeroXPrefix: boolean = true) {
     return `${zeroXPrefix ? '0x' : ''}${createKeccakHash('keccak256').update(blockHex.replace(/^0x/, '')).digest('hex')}`;
 }
 
