@@ -149,14 +149,27 @@ export function logFilterMatch(log, addressFilter, topicsFilter) {
     return true;
 }
 
+function removeZeroHexFromFilter(filter) {
+    if (!filter)
+        return filter;
+
+    if (Array.isArray(filter)) {
+        return filter.map((f) => {
+            if (!f)
+                return f;
+
+            return f.replace(/^0x/, '');
+        })
+    }
+
+    return filter.replace(/^0x/, '');
+}
+
 export function hasTopics(topics: string[], topicsFilter: string[]) {
     const topicsFiltered = [];
     // console.log(`filtering ${JSON.stringify(topics)} by filter: ${JSON.stringify(topicsFilter)}`);
     topicsFilter = topicsFilter.map(t => {
-        if (t.startsWith('0x'))
-            t = t.slice(2);
-
-        return t.replace(/^0*``/, '');
+        return removeZeroHexFromFilter(t);
     })
 
     for (const [index,topic] of topicsFilter.entries()) {

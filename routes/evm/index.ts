@@ -1314,7 +1314,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 			return results;
 		} catch (e) {
-			console.log(JSON.stringify(e, null, 2));
+			console.log(`ERROR while filtering log query result: ${e.message}`);
 			return [];
 		}
 	});
