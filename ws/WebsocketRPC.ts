@@ -40,6 +40,7 @@ export default class WebsocketRPC {
         this.websocketRPC = uWS.App({}).ws('/evm', {
             compression: 0,
             maxPayloadLength: 16 * 1024 * 1024,
+            idleTimeout: 0,
             upgrade: (res, req, context) => {
                 let ip = req.getHeader('x-forwarded-for') || '';
                 if (Array.isArray(ip))

@@ -23,8 +23,8 @@ export default class LogSubscription extends Subscription {
     }
 
     filterMatches(logs): Array<any> {
-        const addrFilter = this.filter.address || [];
-        const topicFilter = this.filter.topics || [];
+        const addrFilter = this.filter.address;
+        const topicFilter = this.filter.topics;
         return logs.filter(log => {
             return logFilterMatch(log, addrFilter, topicFilter);
         });

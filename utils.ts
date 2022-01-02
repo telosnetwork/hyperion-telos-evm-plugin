@@ -128,6 +128,7 @@ export function makeLogObject(rawActionDocument, log, forSubscription) {
 export function logFilterMatch(log, addressFilter, topicsFilter) {
     if (addressFilter) {
         let thisAddr = log.address.toLowerCase();
+        addressFilter = removeZeroHexFromFilter(addressFilter);
         if (Array.isArray(addressFilter) && !addressFilter.includes(thisAddr)) {
             // console.log('filter out by addressFilter as array');
             return false;
@@ -158,16 +159,17 @@ function removeZeroHexFromFilter(filter) {
             if (!f)
                 return f;
 
-            return f.replace(/^0x/, '');
+            return f.replace(/^0x/, '').toLowerCase();
         })
     }
 
-    return filter.replace(/^0x/, '');
+    return filter.replace(/^0x/, '').toLowerCase();
 }
 
 export function hasTopics(topics: string[], topicsFilter: string[]) {
     const topicsFiltered = [];
     // console.log(`filtering ${JSON.stringify(topics)} by filter: ${JSON.stringify(topicsFilter)}`);
+    topics = removeZeroHexFromFilter(topics);
     topicsFilter = topicsFilter.map(t => {
         return removeZeroHexFromFilter(t);
     })

@@ -27,6 +27,7 @@ const abiDecoder = require("abi-decoder");
 const abi = require("ethereumjs-abi");
 const createKeccakHash = require('keccak')
 const GAS_PRICE_OVERESTIMATE = 1.05
+const ACTION_BLOCK_LAG = 4;
 
 const RECEIPT_LOG_START = "RCPT{{";
 const RECEIPT_LOG_END = "}}RCPT";
@@ -557,7 +558,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					}
 				}
 			});
-			let currentBlockNumber = "0x" + Number(results?.body?.hits?.hits[0]?._source["@global"].block_num).toString(16);
+			let currentBlockNumber = "0x" + (Number(results?.body?.hits?.hits[0]?._source["@global"].block_num) - ACTION_BLOCK_LAG).toString(16);
 			fastify.cacheManager.setCachedData(hash, path, currentBlockNumber);
 			return currentBlockNumber;
 		}
@@ -754,10 +755,10 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			if (account.code && account.code.length > 0) {
 				return "0x" + Buffer.from(account.code).toString("hex");
 			} else {
-				return "0x0";
+				return "0x";
 			}
 		} catch (e) {
-			return "0x0";
+			return "0x";
 		}
 	});
 
@@ -1277,7 +1278,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				size: 2000,
 				body: {
 					query: queryBody,
-					sort: [{ "@raw.trx_index": { order: "asc" } }]
+					sort: [{ "global_sequence": { order: "asc" } }]
 				}
 			});
 
