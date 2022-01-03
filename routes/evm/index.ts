@@ -1583,15 +1583,15 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				 const duration = ((Number(process.hrtime.bigint()) - Number(tRef)) / 1000).toFixed(3);
 				 console.log(`RPCREQUEST: ${new Date().toISOString()} - ${duration} μs - ${ip} (${isNaN(usage) ? 0 : usage}/${isNaN(limit) ? 0 : limit}) - ${origin} - ${method}`);
 				 Logger.log(`REQ: ${JSON.stringify(params)} | RESP: ${typeof result == 'object' ? JSON.stringify(result, null, 2) : result}`);
-				 return { id, jsonrpc, result };
+				 return { jsonrpc, id, result };
 			 } catch (e) {
 				 if (e instanceof TransactionError) {
 					 let code = e.code || 3;
-					 let message = e.errorMessage;
+					 let message = e.errorMessage?.replace(/\0.*$/g,'');;
 					 let data = e.data;
-					 let error = { code, message, data };
+					 let error = { code, data, message };
 					 console.log(`RPCREVERT: ${new Date().toISOString()} - | Method: ${method} | VM execution error, reverted with message: ${e.errorMessage} \n\n REQ: ${JSON.stringify(params)}\n\n ERROR RESP: ${JSON.stringify(error)}`);
-					 return { id, jsonrpc, error };
+					 return { jsonrpc, id, error };
 				 }
 
 				 let error: any = { code: 3 };
@@ -1607,7 +1607,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				 }
 
 				 console.log(`RPCERROR: ${new Date().toISOString()} - ${JSON.stringify({error, exception: e})} | Method: ${method} | REQ: ${JSON.stringify(params)}`);
-				 return { id, jsonrpc, error };
+				 return { jsonrpc, id, error };
 			 }
 		 } else {
 			 console.log(`METHODNOTFOUND: ${new Date().toISOString()} - ${method}`);
