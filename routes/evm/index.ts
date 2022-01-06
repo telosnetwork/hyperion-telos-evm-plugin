@@ -27,7 +27,7 @@ const abiDecoder = require("abi-decoder");
 const abi = require("ethereumjs-abi");
 const createKeccakHash = require('keccak')
 const GAS_PRICE_OVERESTIMATE = 1.05
-const ACTION_BLOCK_LAG = 4;
+const ACTION_BLOCK_LAG = 6;
 
 const RECEIPT_LOG_START = "RCPT{{";
 const RECEIPT_LOG_END = "}}RCPT";
@@ -377,7 +377,11 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			let blockHash;
 			if (blockDelta) {
 				timestamp = new Date(blockDelta['@timestamp'] + 'Z').getTime() / 1000 | 0;
-				blockHash = "0x" + blockDelta["@evmBlockHash"];
+				let blockHashFromDelta = blockDelta["@evmBlockHash"];
+				if (blockHashFromDelta)
+					blockHash = "0x" + blockHashFromDelta;
+				else
+					blockHash = blockHexToHash(blockNumberHex);
 			} else {
 				// not found in the index, do our best!
 				timestamp = 0;
