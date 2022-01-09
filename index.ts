@@ -90,14 +90,14 @@ export default class TelosEvm extends HyperionPlugin {
                 action: {
                     "@raw": {
                         "properties": {
-                            "hash": {"type": "keyword"},
+                            "hash": {"type": "text"},
                             "trx_index": {"type": "long"},
                             "block": {"type": "long"},
-                            "block_hash": {"type": "keyword"},
+                            "block_hash": {"type": "text"},
                             "from": {"type": "keyword"},
                             "to": {"type": "keyword"},
                             "input_data": {"type": "keyword"},
-                            "value": {"type": "keyword"},
+                            "value": {"type": "text"},
                             "value_d": {"type": "double"},
                             "nonce": {"type": "long"},
                             "v": {"enabled": false},
@@ -119,23 +119,23 @@ export default class TelosEvm extends HyperionPlugin {
                                     "topics": {"type": "keyword"}
                                 }
                             },
-                            "logsBloom": {"type": "keyword"},
+                            "logsBloom": {"type": "text"},
                             "output": {"enabled": false},
                             "errors": {"enabled": false},
                             "itxs": {
                                 "properties": {
-                                    "callType": {"type": "keyword"},
+                                    "callType": {"type": "text"},
                                     "from": {"type": "keyword"},
-                                    "gas": {"type": "keyword"},
+                                    "gas": {"type": "text"},
                                     "input": {"type": "keyword"},
                                     "to": {"type": "keyword"},
-                                    "value": {"type": "keyword"},
-                                    "gasUsed": {"type": "keyword"},
+                                    "value": {"type": "text"},
+                                    "gasUsed": {"type": "text"},
                                     "output": {"type": "keyword"},
                                     "subtraces": {"type": "long"},
                                     "traceAddress": {"type": "long"},
-                                    "type": {"type": "keyword"},
-                                    "depth": {"type": "keyword"},
+                                    "type": {"type": "text"},
+                                    "depth": {"type": "text"},
                                     "extra": {"type": "object", "enabled": false}
                                 }
                             },
