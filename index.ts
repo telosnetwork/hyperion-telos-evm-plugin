@@ -126,16 +126,16 @@ export default class TelosEvm extends HyperionPlugin {
                                 "properties": {
                                     "callType": {"type": "text"},
                                     "from": {"type": "keyword"},
-                                    "gas": {"type": "text"},
+                                    "gas": {"enabled": false},
                                     "input": {"type": "keyword"},
                                     "to": {"type": "keyword"},
                                     "value": {"type": "text"},
-                                    "gasUsed": {"type": "text"},
+                                    "gasUsed": {"enabled": false},
                                     "output": {"type": "keyword"},
                                     "subtraces": {"type": "long"},
-                                    "traceAddress": {"type": "long"},
+                                    "traceAddress": {"enabled": false},
                                     "type": {"type": "text"},
-                                    "depth": {"type": "text"},
+                                    "depth": {"enabled": false},
                                     "extra": {"type": "object", "enabled": false}
                                 }
                             },
