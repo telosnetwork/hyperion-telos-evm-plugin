@@ -20,6 +20,7 @@ import RPCBroadcaster from "./ws/RPCBroadcaster";
 import {TelosEvmConfig} from "./types";
 import WebsocketRPC from "./ws/WebsocketRPC";
 
+const KEYWORD_STRING_TRIM_SIZE = 32000;
 const RECEIPT_LOG_START = "RCPT{{";
 const RECEIPT_LOG_END = "}}RCPT";
 
@@ -96,7 +97,8 @@ export default class TelosEvm extends HyperionPlugin {
                             "block_hash": {"type": "text"},
                             "from": {"type": "keyword"},
                             "to": {"type": "keyword"},
-                            "input_data": {"type": "keyword"},
+                            "input_data": {"enabled": "false"},
+                            "input_trimmed": {"type": "keyword"},
                             "value": {"type": "text"},
                             "value_d": {"type": "double"},
                             "nonce": {"type": "long"},
@@ -127,11 +129,12 @@ export default class TelosEvm extends HyperionPlugin {
                                     "callType": {"type": "text"},
                                     "from": {"type": "keyword"},
                                     "gas": {"enabled": false},
-                                    "input": {"type": "keyword"},
+                                    "input": {"enabled": false},
+                                    "input_trimmed": {"type": "keyword"},
                                     "to": {"type": "keyword"},
                                     "value": {"type": "text"},
                                     "gasUsed": {"enabled": false},
-                                    "output": {"type": "keyword"},
+                                    "output": {"enabled": false},
                                     "subtraces": {"type": "long"},
                                     "traceAddress": {"enabled": false},
                                     "type": {"type": "text"},
@@ -179,19 +182,26 @@ export default class TelosEvm extends HyperionPlugin {
                         const tx = Transaction.fromSerializedTx(Buffer.from(data.tx, 'hex'), {
                             common: this.common,
                         });
+
+                        const itxs = data.itxs.map((itx) => {
+                            itx.input_trimmed = itx.input.substring(0, KEYWORD_STRING_TRIM_SIZE);
+                        });
+
+                        const inputData = '0x' + tx.data?.toString('hex');
                         const txBody = {
                             hash: '0x' + tx.hash()?.toString('hex'),
                             trx_index: receipt.trx_index,
                             block: receipt.block,
                             block_hash: blockHash,
                             to: tx.to?.toString(),
-                            input_data: '0x' + tx.data?.toString('hex'),
+                            input_data: inputData,
+                            input_trimmed: inputData.substring(0, KEYWORD_STRING_TRIM_SIZE),
                             value: tx.value?.toString(),
                             nonce: tx.nonce?.toString(),
                             gas_price: tx.gasPrice?.toString(),
                             gas_limit: tx.gasLimit?.toString(),
                             status: receipt.status,
-                            itxs: receipt.itxs,
+                            itxs: itxs,
                             epoch: receipt.epoch,
                             createdaddr: receipt.createdaddr.toLowerCase(),
                             gasused: parseInt('0x' + receipt.gasused),
