@@ -183,9 +183,14 @@ export default class TelosEvm extends HyperionPlugin {
                             common: this.common,
                         });
 
-                        const itxs = data.itxs.map((itx) => {
-                            itx.input_trimmed = itx.input.substring(0, KEYWORD_STRING_TRIM_SIZE);
-                        });
+                        if (data.itxs) {
+                            data.itxs.forEach((itx) => {
+                                if (itx.input)
+                                    itx.input_trimmed = itx.input.substring(0, KEYWORD_STRING_TRIM_SIZE);
+                                else
+                                    itx.input_trimmed = itx.input;
+                            });
+                        }
 
                         const inputData = '0x' + tx.data?.toString('hex');
                         const txBody = {
