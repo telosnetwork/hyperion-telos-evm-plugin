@@ -1,7 +1,14 @@
 import {FastifyInstance, FastifyReply, FastifyRequest} from "fastify";
 import {TelosEvmConfig} from "../../index";
 import Bloom from "../../bloom";
-import {toChecksumAddress, blockHexToHash, numToHex, buildLogsObject} from "../../utils"
+import {
+	toChecksumAddress,
+	blockHexToHash,
+	numToHex,
+	buildLogsObject,
+	logFilterMatch,
+	makeLogObject,
+} from "../../utils"
 import DebugLogger from "../../debugLogging";
 import {AuthorityProvider, AuthorityProviderArgs, BinaryAbi} from 'eosjs/dist/eosjs-api-interfaces';
 import {PushTransactionArgs} from 'eosjs/dist/eosjs-rpc-interfaces'
@@ -695,29 +702,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		return blockParam;
 	}
 
-	async function hasTopics(topics: string[], topicsFilter: string[]) {
-		const topicsFiltered = [];
-		// console.log(`filtering ${JSON.stringify(topics)} by filter: ${JSON.stringify(topicsFilter)}`);
-		topicsFilter = topicsFilter.map(t => {
-			if (t.startsWith('0x'))
-				t = t.slice(2);
-
-			return t.replace(/^0*``/, '');
-		})
-
-		for (const [index,topic] of topicsFilter.entries()) {
-			if (topic === null) {
-				topicsFiltered.push(true);
-			} else if (topic.includes(topics[index])) {
-				topicsFiltered.push(true);
-			} else if (topics[index] === topic) {
-				topicsFiltered.push(true);
-			} else {
-				topicsFiltered.push(false);
-			}
-		}
-		return topicsFiltered.every(t => t === true);
-	}
 
 	// LOAD METHODS
 
@@ -796,10 +780,10 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			if (account.code && account.code.length > 0) {
 				return "0x" + Buffer.from(account.code).toString("hex");
 			} else {
-				return "0x0";
+				return "0x";
 			}
 		} catch (e) {
-			return "0x0";
+			return "0x";
 		}
 	});
 
@@ -1319,7 +1303,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				size: 2000,
 				body: {
 					query: queryBody,
-					sort: [{ "@raw.trx_index": { order: "asc" } }]
+					sort: [{ "global_sequence": { order: "asc" } }]
 				}
 			});
 
@@ -1344,37 +1328,11 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 							}
 						}
 
-						if (addressFilter) {
-							let thisAddr = log.address.toLowerCase();
-							if (Array.isArray(addressFilter) && !addressFilter.includes(thisAddr)) {
-								// console.log('filter out by addressFilter as array');
-								continue;
-							}
+						if (!logFilterMatch(log, addressFilter, topicsFilter))
+							continue;
 
-							if (!Array.isArray(addressFilter) && thisAddr != addressFilter) {
-								// console.log('filter out by addressFilter as string');
-								continue;
-							}
-						}
-
-						if (topicsFilter) {
-							if (!await hasTopics(log.topics, topicsFilter)) {
-								// console.log('filter out by topics');
-								continue;
-							}
-						}
-
-						results.push({
-							address: '0x' + log.address,
-							blockHash: '0x' + doc['@raw']['block_hash'],
-							blockNumber: numToHex(doc['@raw']['block']),
-							data: '0x' + log.data,
-							logIndex: numToHex(logCount),
-							removed: false,
-							topics: log.topics.map(t => '0x' + t.padStart(64, '0')),
-							transactionHash: doc['@raw']['hash'],
-							transactionIndex: numToHex(doc['@raw']['trx_index'])
-						});
+						log.logIndex = logCount;
+						results.push(makeLogObject(doc, log, false));
 						logCount++;
 					}
 				}
@@ -1382,7 +1340,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 			return results;
 		} catch (e) {
-			console.log(JSON.stringify(e, null, 2));
+			console.log(`ERROR while filtering log query result: ${e.message}`);
 			return [];
 		}
 	});
