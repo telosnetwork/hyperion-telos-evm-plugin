@@ -183,8 +183,8 @@ export default class TelosEvm extends HyperionPlugin {
                             common: this.common,
                         });
 
-                        if (data.itxs) {
-                            data.itxs.forEach((itx) => {
+                        if (receipt.itxs) {
+                            receipt.itxs.forEach((itx) => {
                                 if (itx.input)
                                     itx.input_trimmed = itx.input.substring(0, KEYWORD_STRING_TRIM_SIZE);
                                 else
@@ -206,7 +206,7 @@ export default class TelosEvm extends HyperionPlugin {
                             gas_price: tx.gasPrice?.toString(),
                             gas_limit: tx.gasLimit?.toString(),
                             status: receipt.status,
-                            itxs: data.itxs,
+                            itxs: receipt.itxs,
                             epoch: receipt.epoch,
                             createdaddr: receipt.createdaddr.toLowerCase(),
                             gasused: parseInt('0x' + receipt.gasused),
