@@ -150,7 +150,7 @@ export function logFilterMatch(log, addressFilter, topicsFilter) {
     return true;
 }
 
-function removeZeroHexFromFilter(filter) {
+export function removeZeroHexFromFilter(filter) {
     if (!filter)
         return filter;
 
