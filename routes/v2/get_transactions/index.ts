@@ -17,11 +17,8 @@ export default function (fastify: FastifyInstance, opts: any, next) {
 					maxLength: 42
 				},
 				"log_topics": {
-					description: 'an array of topics that all must be in the transaction\'s logs (using AND operator)',
-					type: 'array',
-					items: {
-						type: 'string'
-					}
+					description: 'comma separated list of topics that all must be in the transaction\'s logs (using AND operator)',
+					type: 'string'
 				},
 				"sort": {
 					description: 'sort direction',
