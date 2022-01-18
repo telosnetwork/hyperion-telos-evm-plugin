@@ -157,7 +157,7 @@ export function applyLogTopicFilter(query, queryStruct) {
         "bool": {
             "must": {
                 "terms": {
-                    "@raw.logs.topics": removeZeroHexFromFilter(query.log_topics)
+                    "@raw.logs.topics": removeZeroHexFromFilter(query.log_topics.split(','))
                 }
             }
         }
