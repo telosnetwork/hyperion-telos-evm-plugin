@@ -153,15 +153,19 @@ export function applyLogTopicFilter(query, queryStruct) {
     if (!query.log_topics || query.log_topics.length < 1)
         return;
 
-    queryStruct.bool.must.push({
-        "bool": {
-            "must": {
-                "terms": {
-                    "@raw.logs.topics": removeZeroHexFromFilter(query.log_topics.split(','))
+    let topics = removeZeroHexFromFilter(query.log_topics.split(','));
+
+    topics.forEach(topic => {
+        queryStruct.bool.must.push({
+            "bool": {
+                "must": {
+                    "term": {
+                        "@raw.logs.topics": topic
+                    }
                 }
             }
-        }
-    })
+        })
+    });
 }
 
 export function applyHashFilter(query, queryStruct) {
