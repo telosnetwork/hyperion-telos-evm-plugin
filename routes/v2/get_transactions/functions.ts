@@ -153,7 +153,7 @@ export function applyLogTopicFilter(query, queryStruct) {
     if (!query.log_topics || query.log_topics.length < 1)
         return;
 
-    let topics = removeZeroHexFromFilter(query.log_topics.split(','));
+    let topics = removeZeroHexFromFilter(query.log_topics.split(','), true);
 
     topics.forEach(topic => {
         queryStruct.bool.must.push({
