@@ -1,4 +1,5 @@
 const createKeccakHash = require('keccak')
+const BN = require('bn.js');
 
 export interface EthLog {
     address: string;
@@ -47,7 +48,7 @@ export function numToHex(input: number | string) {
     if (typeof input === 'number') {
         return '0x' + input.toString(16)
     } else {
-        return '0x' + (parseInt(input, 10)).toString(16)
+        return '0x' + new BN(input).toString(16)
     }
 }
 

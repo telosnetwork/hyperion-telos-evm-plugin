@@ -26,7 +26,7 @@ const BN = require('bn.js');
 const abiDecoder = require("abi-decoder");
 const abi = require("ethereumjs-abi");
 const createKeccakHash = require('keccak')
-const GAS_PRICE_OVERESTIMATE = 1.05
+const GAS_PRICE_OVERESTIMATE = 1.00
 const ACTION_BLOCK_LAG = 6;
 
 const RECEIPT_LOG_START = "RCPT{{";
