@@ -1,5 +1,5 @@
 import {FastifyInstance, FastifyReply, FastifyRequest} from "fastify";
-import {TelosEvmConfig} from "../../index";
+import {TelosEvmConfig} from "../../types";
 import Bloom from "../../bloom";
 import {
 	toChecksumAddress,
@@ -8,6 +8,8 @@ import {
 	buildLogsObject,
 	logFilterMatch,
 	makeLogObject,
+	BLOCK_TEMPLATE,
+	getParentBlockHash, EMPTY_LOGS
 } from "../../utils"
 import DebugLogger from "../../debugLogging";
 import {AuthorityProvider, AuthorityProviderArgs, BinaryAbi} from 'eosjs/dist/eosjs-api-interfaces';
@@ -24,7 +26,8 @@ const BN = require('bn.js');
 const abiDecoder = require("abi-decoder");
 const abi = require("ethereumjs-abi");
 const createKeccakHash = require('keccak')
-const GAS_PRICE_OVERESTIMATE = 1.05
+const GAS_PRICE_OVERESTIMATE = 1.00
+const ACTION_BLOCK_LAG = 6;
 
 const RECEIPT_LOG_START = "RCPT{{";
 const RECEIPT_LOG_END = "}}RCPT";
@@ -34,28 +37,6 @@ const REVERT_PANIC_SELECTOR = '0x4e487b71'
 
 const EOSIO_ASSERTION_PREFIX = 'assertion failure with message: '
 
-const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
-const NULL_HASH = '0x0000000000000000000000000000000000000000000000000000000000000000';
-const EMPTY_LOGS = '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000';
-// 1,000,000,000
-const BLOCK_GAS_LIMIT = '0x3b9aca00'
-
-const BLOCK_TEMPLATE = {
-	difficulty: "0x0",
-	extraData: NULL_HASH,
-	miner: ZERO_ADDR,
-	mixHash: NULL_HASH,
-	nonce: "0x0000000000000000",
-	parentHash: NULL_HASH,
-	receiptsRoot: NULL_HASH,
-	sha3Uncles: NULL_HASH,
-	gasLimit: BLOCK_GAS_LIMIT,
-	size: "0x0",
-	stateRoot: NULL_HASH,
-	totalDifficulty: "0x0",
-	transactionsRoot: NULL_HASH,
-	uncles: []
-};
 
 function parseRevertReason(revertOutput) {
     if (!revertOutput || revertOutput.length < 138) {
@@ -185,7 +166,7 @@ class TransactionError extends Error {
 
 export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
-	const methods: Map<string, (params?: any, headers?: any) => Promise<any> | any> = new Map();
+	const methods: Map<string, (params?: any) => Promise<any> | any> = new Map();
 	const decimalsBN = new BN('1000000000000000000');
 	const zeros = "0x0000000000000000000000000000000000000000";
 	const chainAddr = [
@@ -376,12 +357,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	}
 	*/
 
-	function getParentBlockHash(blockNumberHex: string) {
-		let blockNumber = parseInt(blockNumberHex, 16);
-		let parentBlockHex = (blockNumber - 1).toString(16);
-		return blockHexToHash(parentBlockHex);
-	}
-
 	async function emptyBlockFromNumber(blockNumber: number) {
 		try {
 			const results = await fastify.elastic.search({
@@ -402,7 +377,11 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			let blockHash;
 			if (blockDelta) {
 				timestamp = new Date(blockDelta['@timestamp'] + 'Z').getTime() / 1000 | 0;
-				blockHash = "0x" + blockDelta["@evmBlockHash"];
+				let blockHashFromDelta = blockDelta["@evmBlockHash"];
+				if (blockHashFromDelta)
+					blockHash = "0x" + blockHashFromDelta;
+				else
+					blockHash = blockHexToHash(blockNumberHex);
 			} else {
 				// not found in the index, do our best!
 				timestamp = 0;
@@ -583,7 +562,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					}
 				}
 			});
-			let currentBlockNumber = "0x" + Number(results?.body?.hits?.hits[0]?._source["@global"].block_num).toString(16);
+			let currentBlockNumber = "0x" + (Number(results?.body?.hits?.hits[0]?._source["@global"].block_num) - ACTION_BLOCK_LAG).toString(16);
 			fastify.cacheManager.setCachedData(hash, path, currentBlockNumber);
 			return currentBlockNumber;
 		}
@@ -708,7 +687,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
     /**
      * Returns the supported modules
      */
-    methods.set('rpc_modules', (params, headers) => {
+    methods.set('rpc_modules', () => {
         return {
             "eth":"1.0",
             "net":"1.0",
@@ -721,7 +700,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
     /**
      * Returns the user-agent
      */
-    methods.set('web3_clientVersion', (params, headers) => {
+    methods.set('web3_clientVersion', () => {
 		// TODO: maybe figure out how to set this dynamically from a tag?
         return `TelosEVM/v1.0.0`;
     })
@@ -1587,54 +1566,36 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		tags: ['evm'],
 	};
 
-	 async function doRpcMethod(jsonRpcRequest: any, request: FastifyRequest, reply: FastifyReply) {
+	 async function doRpcMethod(jsonRpcRequest: any, clientInfo, reply: any) {
 		 let { jsonrpc, id, method, params } = jsonRpcRequest;
+		 let { usage, limit, origin, ip } = clientInfo;
 
 		 // if jsonrpc not set, assume 2.0 as there are some clients which leave it out
 		 if (!jsonrpc)
 			 jsonrpc = "2.0"
 
 		 if (jsonrpc !== "2.0") {
-			 Logger.log(`Got invalid jsonrpc, request.body was: ${JSON.stringify(request.body, null, 4)}`);
+			 Logger.log(`Got invalid jsonrpc, request.body was: ${JSON.stringify(jsonRpcRequest, null, 4)}`);
 			 return jsonRPC2Error(reply, "InvalidRequest", id, "Invalid JSON RPC");
 		 }
 		 if (methods.has(method)) {
 			 const tRef = process.hrtime.bigint();
 			 const func = methods.get(method);
 			 try {
-				 const result = await func(params, request.headers);
-				 let origin;
-				 if (request.headers['origin'] === METAMASK_EXTENSION_ORIGIN) {
-					 origin = 'MetaMask';
-				 } else {
-					 if (request.headers['origin']) {
-						 origin = request.headers['origin'];
-					 } else {
-						 origin = request.headers['user-agent'];
-					 }
-				 }
-				 const _usage = parseInt(reply.getHeader('x-ratelimit-remaining'));
-				 const _limit = parseInt(reply.getHeader('x-ratelimit-limit'));
-				 let _ip = request.headers['x-forwarded-for'] || '';
-				 if (Array.isArray(_ip))
-					 _ip = _ip[0] || ''
-
-				 if (_ip.includes(','))
-					 _ip = _ip.substr(0, _ip.indexOf(','));
+				 const result = await func(params);
 
 				 const duration = ((Number(process.hrtime.bigint()) - Number(tRef)) / 1000).toFixed(3);
-
-				 console.log(`RPCREQUEST: ${new Date().toISOString()} - ${duration} μs - ${_ip} (${isNaN(_usage) ? 0 : _usage}/${isNaN(_limit) ? 0 : _limit}) - ${origin} - ${method}`);
+				 console.log(`RPCREQUEST: ${new Date().toISOString()} - ${duration} μs - ${ip} (${isNaN(usage) ? 0 : usage}/${isNaN(limit) ? 0 : limit}) - ${origin} - ${method}`);
 				 Logger.log(`REQ: ${JSON.stringify(params)} | RESP: ${typeof result == 'object' ? JSON.stringify(result, null, 2) : result}`);
-				 return { id, jsonrpc, result };
+				 return { jsonrpc, id, result };
 			 } catch (e) {
 				 if (e instanceof TransactionError) {
 					 let code = e.code || 3;
-					 let message = e.errorMessage;
+					 let message = e.errorMessage?.replace(/\0.*$/g,'');;
 					 let data = e.data;
-					 let error = { code, message, data };
+					 let error = { code, data, message };
 					 console.log(`RPCREVERT: ${new Date().toISOString()} - | Method: ${method} | VM execution error, reverted with message: ${e.errorMessage} \n\n REQ: ${JSON.stringify(params)}\n\n ERROR RESP: ${JSON.stringify(error)}`);
-					 return { id, jsonrpc, error };
+					 return { jsonrpc, id, error };
 				 }
 
 				 let error: any = { code: 3 };
@@ -1650,7 +1611,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				 }
 
 				 console.log(`RPCERROR: ${new Date().toISOString()} - ${JSON.stringify({error, exception: e})} | Method: ${method} | REQ: ${JSON.stringify(params)}`);
-				 return { id, jsonrpc, error };
+				 return { jsonrpc, id, error };
 			 }
 		 } else {
 			 console.log(`METHODNOTFOUND: ${new Date().toISOString()} - ${method}`);
@@ -1658,42 +1619,55 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		 }
 	 }
 
-	fastify.post('/evm', { schema }, async (request: FastifyRequest, reply: FastifyReply) => {
-		if (Array.isArray(request.body)) {
-			if (request.body.length == 0)
-				return {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}
+	 async function doRpcPayload(payload, clientInfo, reply) {
+		 const { ip, origin, usage, limit } = clientInfo;
+		if (Array.isArray(payload)) {
+			if (payload.length == 0)
+				return
 
 			const tRef = process.hrtime.bigint();
+
 			let promises = [];
-			for (let i = 0; i < request.body.length; i++) {
-				let promise = doRpcMethod(request.body[i], request, reply);
+			for (let i = 0; i < payload.length; i++) {
+				let promise = doRpcMethod(payload[i], clientInfo, reply);
 				promises.push(promise);
 			}
 			let responses = await Promise.all(promises);
-			let origin;
-			if (request.headers['origin'] === METAMASK_EXTENSION_ORIGIN) {
-				origin = 'MetaMask';
-			} else {
-				if (request.headers['origin']) {
-					origin = request.headers['origin'];
-				} else {
-					origin = request.headers['user-agent'];
-				}
-			}
+
 			const duration = ((Number(process.hrtime.bigint()) - Number(tRef)) / 1000).toFixed(3);
-			const _usage = reply.getHeader('x-ratelimit-remaining');
-			const _limit = reply.getHeader('x-ratelimit-limit');
-			let _ip = request.headers['x-forwarded-for'] || '';
-			if (Array.isArray(_ip))
-				_ip = _ip[0] || ''
-
-			if (_ip.includes(','))
-				_ip = _ip.substr(0, _ip.indexOf(','));
-
-			console.log(`RPCREQUESTBATCH: ${new Date().toISOString()} - ${duration} μs - ${_ip} (${_usage}/${_limit}) - ${origin} - BATCH OF ${responses.length}`);
+			console.log(`RPCREQUESTBATCH: ${new Date().toISOString()} - ${duration} μs - ${ip} (${usage}/${limit}) - ${origin} - BATCH OF ${responses.length}`);
 			return responses;
 		} else {
-			return await doRpcMethod(request.body, request, reply);
+			return await doRpcMethod(payload, clientInfo, reply);
 		}
+	}
+
+	fastify.rpcPayloadHandlerContainer.handler = doRpcPayload;
+
+	fastify.post('/evm', { schema }, async (request: FastifyRequest, reply: FastifyReply) => {
+		let origin;
+		if (request.headers['origin'] === METAMASK_EXTENSION_ORIGIN) {
+			origin = 'MetaMask';
+		} else {
+			if (request.headers['origin']) {
+				origin = request.headers['origin'];
+			} else {
+				origin = request.headers['user-agent'];
+			}
+		}
+		const usage = parseInt(reply.getHeader('x-ratelimit-remaining'));
+		const limit = parseInt(reply.getHeader('x-ratelimit-limit'));
+		let ip = request.headers['x-forwarded-for'] || '';
+		if (Array.isArray(ip))
+			ip = ip[0] || ''
+
+		if (ip.includes(','))
+			ip = ip.substr(0, ip.indexOf(','));
+
+		const clientInfo = {
+			ip, origin, usage, limit
+		}
+
+		return await doRpcPayload(request.body, clientInfo, reply);
 	});
 }

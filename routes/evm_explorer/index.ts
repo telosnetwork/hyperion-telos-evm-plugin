@@ -1,5 +1,5 @@
 import {FastifyInstance, FastifyReply, FastifyRequest} from "fastify";
-import {TelosEvmConfig} from "../../index";
+import {TelosEvmConfig} from "../../types";
 
 const schema: any = {
 	summary: 'DEPRECATED: Used by explorer but to be replaced by /v2/evm/get_transactions',

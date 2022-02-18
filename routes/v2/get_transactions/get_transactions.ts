@@ -8,7 +8,8 @@ import {
 	applyAddressFilter,
 	applyTimeFilter,
 	addSortedBy,
-	formatRawToTransaction
+	formatRawToTransaction,
+	applyLogTopicFilter
 } from "./functions";
 
 async function getTransactions(fastify: FastifyInstance, request: FastifyRequest) {
@@ -40,6 +41,7 @@ async function getTransactions(fastify: FastifyInstance, request: FastifyRequest
 	applyAddressFilter(query, queryStruct);
 	applyBlockFilter(query, queryStruct);
 	applyHashFilter(query, queryStruct);
+	applyLogTopicFilter(query, queryStruct);
 
 	// allow precise counting of total hits
 	const trackTotalHits = getTrackTotalHits(query);

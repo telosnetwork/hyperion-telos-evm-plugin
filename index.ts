@@ -9,27 +9,20 @@ import {HyperionAction} from "../../../interfaces/hyperion-action";
 import {HyperionDelta} from "../../../interfaces/hyperion-delta";
 import Bloom from "./bloom";
 import {hLog} from "../../../helpers/common_functions";
-import {toChecksumAddress} from "./utils"
+import {blockHexToHash, toChecksumAddress} from "./utils"
 
 
 const BN = require('bn.js');
 const createKeccakHash = require('keccak');
 const {TelosEvmApi} = require('@telosnetwork/telosevm-js');
 const {Signature} = require('eosjs-ecc');
+import RPCBroadcaster from "./ws/RPCBroadcaster";
+import {TelosEvmConfig} from "./types";
+import WebsocketRPC from "./ws/WebsocketRPC";
 
+const KEYWORD_STRING_TRIM_SIZE = 32000;
 const RECEIPT_LOG_START = "RCPT{{";
 const RECEIPT_LOG_END = "}}RCPT";
-
-export interface TelosEvmConfig {
-    signer_account: string;
-    signer_permission: string;
-    signer_key: string;
-    contracts: {
-        main: string;
-    }
-    chainId: number;
-    debug: boolean;
-}
 
 export default class TelosEvm extends HyperionPlugin {
     internalPluginName = 'telos-evm';
@@ -46,6 +39,8 @@ export default class TelosEvm extends HyperionPlugin {
     hardfork = 'istanbul';
     counter = 0;
     pluginConfig: TelosEvmConfig;
+    rpcBroadcaster: RPCBroadcaster;
+    websocketRPC: WebsocketRPC
 
     constructor(config: TelosEvmConfig) {
         // TODO: some setTimeout that will send the doresources call?
@@ -64,6 +59,7 @@ export default class TelosEvm extends HyperionPlugin {
                 );
                 this.loadActionHandlers();
                 this.loadDeltaHandlers();
+                this.registerStreamHandlers();
             }
         }
     }
@@ -79,113 +75,11 @@ export default class TelosEvm extends HyperionPlugin {
             },
             handler: async (delta: HyperionDelta) => {
                 const blockHex = (delta["@global"].block_num as number).toString(16);
-                const blockHash = createKeccakHash('keccak256').update(blockHex).digest('hex');
+                const blockHash = blockHexToHash(blockHex, false);
 
                 delta['@evmBlockHash'] = blockHash;
             }
         })
-        /*
-        // eosio.evm::receipt
-        this.deltaHandlers.push({
-            table: 'receipt',
-            contract: 'eosio.evm',
-            mappings: {
-                delta: {
-                    "@evmReceipt": {
-                        "properties": {
-                            "index": {"type": "long"},
-                            "hash": {"type": "keyword"},
-                            "trx_index": {"type": "long"},
-                            "block": {"type": "long"},
-                            "block_hash": {"type": "keyword"},
-                            "trxid": {"type": "keyword"},
-                            "status": {"type": "byte"},
-                            "epoch": {"type": "long"},
-                            "createdaddr": {"type": "keyword"},
-                            "gasused": {"type": "long"},
-                            "ramused": {"type": "long"},
-                            "logs": {
-                                "properties": {
-                                    "address": {"type": "keyword"},
-                                    "data": {"enabled": false},
-                                    "topics": {"type": "keyword"}
-                                }
-                            },
-                            "logsBloom": {"type": "keyword"},
-                            "output": {"enabled": false},
-                            "errors": {"enabled": false},
-                            "itxs": {
-                                "properties": {
-                                    "callType": { "type": "text" },
-                                    "from": { "type": "text" },
-                                    "gas": { "type": "text" },
-                                    "input": { "type": "text" },
-                                    "to": { "type": "text" },
-                                    "value": { "type": "text" },
-                                    "gasUsed": { "type": "text" },
-                                    "output": { "type": "text" },
-                                    "subtraces": { "type": "long" },
-                                    "traceAddress": {"type": "long"},
-                                    "type": { "type": "text" },
-                                    "depth": { "type": "text" },
-                                    "extra": {"type" : "text"}
-                                }
-                            },
-                        }
-                    }
-                }
-            },
-            handler: async (delta: HyperionDelta) => {
-                const data = delta.data;
-
-                const blockHex = (data.block as number).toString(16);
-                const blockHash = createKeccakHash('keccak256').update(blockHex).digest('hex');
-
-                delta['@evmReceipt'] = {
-                    index: data.index,
-                    hash: data.hash.toLowerCase(),
-                    trx_index: data.trx_index,
-                    block: data.block,
-                    block_hash: blockHash,
-                    trxid: data.trxid.toLowerCase(),
-                    status: data.status,
-                    epoch: data.epoch,
-                    createdaddr: data.createdaddr.toLowerCase(),
-                    gasused: parseInt('0x' + data.gasused),
-                    ramused: parseInt('0x' + data.ramused),
-                    output: data.output,
-                    itxs: data.itxs	|| []
-                };
-
-                if (data.logs) {
-                    delta['@evmReceipt']['logs'] = JSON.parse(data.logs);
-                    if (delta['@evmReceipt']['logs'].length === 0) {
-                        delete delta['@evmReceipt']['logs'];
-                    } else {
-                        console.log('------- LOGS -----------');
-                        console.log(delta['@evmReceipt']['logs']);
-                        const bloom = new Bloom();
-                        for (const topic of delta['@evmReceipt']['logs'][0]['topics'])
-                            bloom.add(Buffer.from(topic, 'hex'));
-                        bloom.add(Buffer.from(delta['@evmReceipt']['logs'][0]['address'], 'hex'));
-                        delta['@evmReceipt']['logsBloom'] = bloom.bitvector.toString('hex');
-                    }
-                }
-
-                if (data.errors) {
-                    delta['@evmReceipt']['errors'] = JSON.parse(data.errors);
-                    if (delta['@evmReceipt']['errors'].length === 0) {
-                        delete delta['@evmReceipt']['errors'];
-                    } else {
-                        console.log('------- ERRORS -----------');
-                        console.log(delta['@evmReceipt']['errors'])
-                    }
-                }
-
-                delete delta.data;
-            }
-        });
-        */
     }
 
     loadActionHandlers() {
@@ -197,14 +91,15 @@ export default class TelosEvm extends HyperionPlugin {
                 action: {
                     "@raw": {
                         "properties": {
-                            "hash": {"type": "keyword"},
+                            "hash": {"type": "text"},
                             "trx_index": {"type": "long"},
                             "block": {"type": "long"},
-                            "block_hash": {"type": "keyword"},
+                            "block_hash": {"type": "text"},
                             "from": {"type": "keyword"},
                             "to": {"type": "keyword"},
-                            "input_data": {"enabled": false},
-                            "value": {"type": "keyword"},
+                            "input_data": {"enabled": "false"},
+                            "input_trimmed": {"type": "keyword"},
+                            "value": {"type": "text"},
                             "value_d": {"type": "double"},
                             "nonce": {"type": "long"},
                             "v": {"enabled": false},
@@ -226,23 +121,24 @@ export default class TelosEvm extends HyperionPlugin {
                                     "topics": {"type": "keyword"}
                                 }
                             },
-                            "logsBloom": {"type": "keyword"},
+                            "logsBloom": {"type": "text"},
                             "output": {"enabled": false},
                             "errors": {"enabled": false},
                             "itxs": {
                                 "properties": {
                                     "callType": {"type": "text"},
-                                    "from": {"type": "text"},
-                                    "gas": {"type": "text"},
-                                    "input": {"type": "text"},
-                                    "to": {"type": "text"},
+                                    "from": {"type": "keyword"},
+                                    "gas": {"enabled": false},
+                                    "input": {"enabled": false},
+                                    "input_trimmed": {"type": "keyword"},
+                                    "to": {"type": "keyword"},
                                     "value": {"type": "text"},
-                                    "gasUsed": {"type": "text"},
-                                    "output": {"type": "text"},
+                                    "gasUsed": {"enabled": false},
+                                    "output": {"enabled": false},
                                     "subtraces": {"type": "long"},
-                                    "traceAddress": {"type": "long"},
+                                    "traceAddress": {"enabled": false},
                                     "type": {"type": "text"},
-                                    "depth": {"type": "text"},
+                                    "depth": {"enabled": false},
                                     "extra": {"type": "object", "enabled": false}
                                 }
                             },
@@ -286,13 +182,25 @@ export default class TelosEvm extends HyperionPlugin {
                         const tx = Transaction.fromSerializedTx(Buffer.from(data.tx, 'hex'), {
                             common: this.common,
                         });
+
+                        if (receipt.itxs) {
+                            receipt.itxs.forEach((itx) => {
+                                if (itx.input)
+                                    itx.input_trimmed = itx.input.substring(0, KEYWORD_STRING_TRIM_SIZE);
+                                else
+                                    itx.input_trimmed = itx.input;
+                            });
+                        }
+
+                        const inputData = '0x' + tx.data?.toString('hex');
                         const txBody = {
                             hash: '0x' + tx.hash()?.toString('hex'),
                             trx_index: receipt.trx_index,
                             block: receipt.block,
                             block_hash: blockHash,
                             to: tx.to?.toString(),
-                            input_data: '0x' + tx.data?.toString('hex'),
+                            input_data: inputData,
+                            input_trimmed: inputData.substring(0, KEYWORD_STRING_TRIM_SIZE),
                             value: tx.value?.toString(),
                             nonce: tx.nonce?.toString(),
                             gas_price: tx.gasPrice?.toString(),
@@ -365,6 +273,56 @@ export default class TelosEvm extends HyperionPlugin {
         });
     }
 
+    registerStreamHandlers() {
+        const pluginThis = this;
+        this.streamHandlers.push({
+            event: 'trace',
+            handler: async streamEvent => {
+                try {
+                    const headers = streamEvent.properties.headers;
+                    if (headers) {
+                        if (headers.event === 'delta' && headers.code === 'eosio' && headers.table === 'global') {
+                            if (streamEvent.content) {
+                                const evPayload = {
+                                    event: 'evm_block',
+                                    globalDelta: streamEvent.content.toString()
+                                };
+                                process.send(evPayload);
+                            }
+                        } else if (headers.event === 'trace' && headers.account === 'eosio.evm' && headers.name === 'raw') {
+                            if (streamEvent.content) {
+                                const evPayload = {
+                                    event: 'evm_transaction',
+                                    actionTrace: streamEvent.content.toString()
+
+                                };
+                                process.send(evPayload);
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.log(`Error during stream handler: ${e.message}`)
+                }
+            }
+        });
+    }
+
+    initOnce() {
+        super.initOnce();
+        if (this.rpcBroadcaster) {
+            console.error("initOnce called more than once!!! rpcBroadcaster already set!!");
+            return;
+        }
+        this.rpcBroadcaster = new RPCBroadcaster(this.baseConfig);
+    }
+
+    initHandlerMap(): any {
+        return {
+            'evm_transaction': (msg) => this.rpcBroadcaster.broadcastRaw(msg.actionTrace),
+            'evm_block': (msg) => this.rpcBroadcaster.handleGlobalDelta(msg.globalDelta)
+        };
+    }
+
     addRoutes(server: FastifyInstance): void {
         server.decorate('evm', new TelosEvmApi({
             endpoint: server["chain_api"],
@@ -376,11 +334,13 @@ export default class TelosEvm extends HyperionPlugin {
             signingPermission: this.pluginConfig.signer_permission
         }));
         server.evm.setDebug(this.pluginConfig.debug);
+        server.decorate('rpcPayloadHandlerContainer', {});
         server.register(autoLoad, {
             dir: join(__dirname, 'routes'),
             dirNameRoutePrefix: false,
             options: this.pluginConfig
         });
+        this.websocketRPC = new WebsocketRPC(this.pluginConfig, server.rpcPayloadHandlerContainer);
     }
 
     logDebug(msg: String): void {

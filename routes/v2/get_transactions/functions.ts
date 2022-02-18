@@ -1,4 +1,4 @@
-import {buildLogsObject, numToHex} from "../../../utils";
+import {buildLogsObject, numToHex, removeZeroHexFromFilter} from "../../../utils";
 
 export function addSortedBy(query, queryBody, sort_direction) {
     if (query['sortedBy']) {
@@ -147,6 +147,25 @@ export function formatRawToTransaction(rawAction) {
         r: `0x${raw.r}`,
         s: `0x${raw.s}`
     };
+}
+
+export function applyLogTopicFilter(query, queryStruct) {
+    if (!query.log_topics || query.log_topics.length < 1)
+        return;
+
+    let topics = removeZeroHexFromFilter(query.log_topics.split(','), true);
+
+    topics.forEach(topic => {
+        queryStruct.bool.must.push({
+            "bool": {
+                "must": {
+                    "term": {
+                        "@raw.logs.topics": topic
+                    }
+                }
+            }
+        })
+    });
 }
 
 export function applyHashFilter(query, queryStruct) {

@@ -11,10 +11,14 @@ export default function (fastify: FastifyInstance, opts: any, next) {
 			type: 'object',
 			properties: {
 				"address": {
-					description: 'address address',
+					description: 'address that must be in either to or from property',
 					type: 'string',
 					minLength: 42,
 					maxLength: 42
+				},
+				"log_topics": {
+					description: 'comma separated list of topics that all must be in the transaction\'s logs (using AND operator)',
+					type: 'string'
 				},
 				"sort": {
 					description: 'sort direction',
