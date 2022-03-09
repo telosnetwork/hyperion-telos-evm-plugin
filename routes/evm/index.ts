@@ -5,6 +5,7 @@ import {
 	toChecksumAddress,
 	blockHexToHash,
 	numToHex,
+	removeZeroHexFromFilter,
 	buildLogsObject,
 	logFilterMatch,
 	makeLogObject,
@@ -1258,14 +1259,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				if (!topic)
 					return;
 
-				if (Array.isArray(topic)) {
-					topic.forEach((orTopic) => {
-						if (orTopic)
-							flatTopics.push(orTopic.startsWith('0x') ? orTopic.slice(2).toLowerCase() : orTopic.toLowerCase());
-					})
-				} else {
-					flatTopics.push(topic.startsWith('0x') ? topic.slice(2).toLowerCase() : topic.toLowerCase());
-				}
+				flatTopics.push(removeZeroHexFromFilter(topic, true));
 			})
 			queryBody.bool.must.push({
 				terms: {
