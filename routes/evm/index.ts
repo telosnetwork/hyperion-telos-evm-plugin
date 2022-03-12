@@ -1259,7 +1259,13 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				if (!topic)
 					return;
 
-				flatTopics.push(removeZeroHexFromFilter(topic, true));
+				let trimmed = removeZeroHexFromFilter(topic, true);
+
+				if (Array.isArray(trimmed)) {
+					trimmed.forEach(t => flatTopics.push(t));
+				} else {
+					flatTopics.push(trimmed);
+				}
 			})
 			queryBody.bool.must.push({
 				terms: {
