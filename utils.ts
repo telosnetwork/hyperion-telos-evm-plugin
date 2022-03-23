@@ -152,6 +152,14 @@ export function logFilterMatch(log, addressFilter, topicsFilter) {
     return true;
 }
 
+export function removeLeftZeros(value, zeroXPrefix=true) {
+    let removed =`${value.replace(/^0x/, '').replace(/^(0)*/, '')}`;
+    if (removed === '')
+        removed = '0';
+
+    return zeroXPrefix ? `0x${removed}` : removed;
+}
+
 export function removeZeroHexFromFilter(filter, trimLeftZeros=false) {
     if (!filter)
         return filter;

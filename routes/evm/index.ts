@@ -10,7 +10,7 @@ import {
 	logFilterMatch,
 	makeLogObject,
 	BLOCK_TEMPLATE,
-	getParentBlockHash, EMPTY_LOGS
+	getParentBlockHash, EMPTY_LOGS, removeLeftZeros
 } from "../../utils"
 import DebugLogger from "../../debugLogging";
 import {AuthorityProvider, AuthorityProviderArgs, BinaryAbi} from 'eosjs/dist/eosjs-api-interfaces';
@@ -395,7 +395,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				hash: blockHash,
 				logsBloom: "0x" + new Bloom().bitvector.toString("hex"),
 				number: blockNumberHex,
-				timestamp: "0x" + timestamp?.toString(16),
+				timestamp: removeLeftZeros(timestamp?.toString(16)),
 				transactions: [],
 			});
 		} catch (e) {
@@ -431,8 +431,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				parentHash: getParentBlockHash(blockNumberHex),
 				hash: "0x" + blockDelta["@evmBlockHash"],
 				logsBloom: "0x" + new Bloom().bitvector.toString("hex"),
-				number: blockNumberHex,
-				timestamp: "0x" + timestamp?.toString(16),
+				number: removeLeftZeros(blockNumberHex),
+				timestamp: removeLeftZeros(timestamp?.toString(16)),
 				transactions: [],
 			});
 		} catch (e) {
@@ -479,7 +479,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			} else {
 				trxs.push({
 					blockHash: blockHash,
-					blockNumber: blockHex,
+					blockNumber: removeLeftZeros(blockHex),
 					from: toChecksumAddress(receipt['from']),
 					gas: "0x" + Number(receipt['gasused']).toString(16),
 					gasPrice: "0x" + Number(receipt['charged_gas_price']).toString(16),
@@ -497,12 +497,12 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		logsBloom = "0x" + bloom.bitvector.toString("hex");
 
 		return Object.assign({}, BLOCK_TEMPLATE, {
-			gasUsed: numToHex(gasUsedBlock),
+			gasUsed: removeLeftZeros(numToHex(gasUsedBlock)),
 			parentHash: getParentBlockHash(blockHex),
 			hash: blockHash,
 			logsBloom: logsBloom,
-			number: blockHex,
-			timestamp: "0x" + timestamp?.toString(16),
+			number: removeLeftZeros(blockHex),
+			timestamp: removeLeftZeros(timestamp?.toString(16)),
 			transactions: trxs,
 		});
 	}
@@ -716,7 +716,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	 */
 	methods.set('eth_blockNumber', async () => {
 		try {
-			return await getCurrentBlockNumber(true);
+			return removeLeftZeros(await getCurrentBlockNumber(true));
 		} catch (e) {
 			throw new Error('Request Failed: ' + e.message);
 		}
@@ -747,7 +747,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	 * Returns the number of transactions sent from an address.
 	 */
 	methods.set('eth_getTransactionCount', async ([address]) => {
-		return await fastify.evm.telos.getNonce(address.toLowerCase());
+		return removeLeftZeros(await fastify.evm.telos.getNonce(address.toLowerCase()));
 	});
 
 	/**
@@ -839,10 +839,10 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			throw err;
 		}
 
-		let toReturn = `0x${Math.ceil((parseInt(gas, 16) * GAS_OVER_ESTIMATE_MULTIPLIER)).toString(16)}`;
+		let toReturn = `${Math.ceil((parseInt(gas, 16) * GAS_OVER_ESTIMATE_MULTIPLIER)).toString(16)}`;
 		Logger.log(`From contract, gas estimate is ${gas}, with multiplier returning ${toReturn}`)
 		//let toReturn = `0x${Math.ceil((parseInt(gas, 16) * GAS_OVER_ESTIMATE_MULTIPLIER)).toString(16)}`;
-		return toReturn;
+		return removeLeftZeros(toReturn);
 	});
 
     /**
@@ -858,7 +858,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
         } else {
             let price = await fastify.evm.telos.getGasPrice();
             let priceInt = parseInt(price, 16) * GAS_PRICE_OVERESTIMATE;
-            const gasPrice = isNaN(priceInt) ? null : "0x" + Math.floor(priceInt).toString(16);
+            const gasPrice = isNaN(priceInt) ? null : removeLeftZeros(Math.floor(priceInt).toString(16));
             fastify.cacheManager.setCachedData(hash, path, gasPrice);
             return gasPrice;
         }
@@ -871,7 +871,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		try {
 			const account = await fastify.evm.telos.getEthAccount(address.toLowerCase());
 			const bal = account.balance as number;
-			return "0x" + bal.toString(16);
+			return removeLeftZeros(bal.toString(16));
 		} catch (e) {
 			return "0x0000";
 		}
@@ -1050,16 +1050,16 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 			return {
 				blockHash: _blockHash,
-				blockNumber: numToHex(receipt['block']),
+				blockNumber: removeLeftZeros(numToHex(receipt['block'])),
 				contractAddress: toChecksumAddress(_contractAddr),
-				cumulativeGasUsed: _gas,
+				cumulativeGasUsed: removeLeftZeros(_gas),
 				from: toChecksumAddress(receipt['from']),
-				gasUsed: _gas,
+				gasUsed: removeLeftZeros(_gas),
 				logsBloom: _logsBloom,
-				status: numToHex(receipt['status']),
+				status: removeLeftZeros(numToHex(receipt['status'])),
 				to: toChecksumAddress(receipt['to']),
 				transactionHash: receipt['hash'],
-				transactionIndex: numToHex(receipt['trx_index']),
+				transactionIndex: removeLeftZeros(numToHex(receipt['trx_index'])),
 				logs: buildLogsObject(
 					receipt['logs'],
 					_blockHash,
@@ -1094,17 +1094,18 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		const _blockNum = numToHex(receipt['block']);
 		return {
 			blockHash: _blockHash,
-			blockNumber: _blockNum,
+			blockNumber: removeLeftZeros(_blockNum),
 			from: toChecksumAddress(receipt['from']),
-			gas: numToHex(receipt.gas_limit),
-			gasPrice: numToHex(receipt.charged_gas_price),
+			gas: removeLeftZeros(numToHex(receipt.gas_limit)),
+			gasPrice: removeLeftZeros(numToHex(receipt.charged_gas_price)),
 			hash: receipt['hash'],
 			input: receipt['input_data'],
-			nonce: numToHex(receipt['nonce']),
+			nonce: removeLeftZeros(numToHex(receipt['nonce'])),
 			to: toChecksumAddress(receipt['to']),
-			transactionIndex: numToHex(receipt['trx_index']),
-			value: numToHex(receipt['value']),
-			v, r, s
+			transactionIndex: removeLeftZeros(numToHex(receipt['trx_index'])),
+			value: removeLeftZeros(numToHex(receipt['value'])),
+			v: removeLeftZeros(v),
+			r, s
 		};
 	});
 
@@ -1140,7 +1141,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		}
 		const receipts = await getReceiptsByTerm("@raw.block_hash", _hash);
 		const txCount: number = receipts.length;
-		return '0x' + txCount.toString(16);
+		return removeLeftZeros(txCount.toString(16));
 	});
 
 	/**
@@ -1151,7 +1152,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		const blockNumber = parseInt(block, 16);
 		const receipts = await getReceiptsByTerm("@raw.block", blockNumber);
 		const txCount: number = receipts.length;
-		return '0x' + txCount.toString(16);
+		return removeLeftZeros(txCount.toString(16));
 	});
 
 	/**
