@@ -873,7 +873,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			const bal = account.balance as number;
 			return removeLeftZeros(bal.toString(16));
 		} catch (e) {
-			return "0x0000";
+			return "0x0";
 		}
 	});
 
