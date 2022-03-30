@@ -109,7 +109,7 @@ export function buildLogsObject(logs: any[], blHash: string, blNumber: string, t
 
 export function makeLogObject(rawActionDocument, log, forSubscription) {
     let baseLogObj = {
-        address: '0x' + log.address,
+        address: toChecksumAddress('0x' + log.address),
         blockHash: '0x' + rawActionDocument['@raw']['block_hash'],
         blockNumber: numToHex(rawActionDocument['@raw']['block']),
         data: '0x' + log.data,
