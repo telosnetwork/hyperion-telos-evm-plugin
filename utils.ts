@@ -154,7 +154,7 @@ export function logFilterMatch(log, addressFilter, topicsFilter) {
 
 export function leftPadZerosEvenBytes(value) {
     let removed = value.replace(/^0x/, '');
-    return removed % 2 === 0 ? `0x${removed}` : `0x0${removed}`
+    return removed.length % 2 === 0 ? `0x${removed}` : `0x0${removed}`
 }
 
 export function leftPadZerosToWidth(value, width) {
