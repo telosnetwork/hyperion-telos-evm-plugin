@@ -10,7 +10,7 @@ import {
 	logFilterMatch,
 	makeLogObject,
 	BLOCK_TEMPLATE,
-	getParentBlockHash, EMPTY_LOGS, removeLeftZeros
+	getParentBlockHash, EMPTY_LOGS, removeLeftZeros, leftPadZerosToWidth, leftPadZerosEvenBytes
 } from "../../utils"
 import DebugLogger from "../../debugLogging";
 import {AuthorityProvider, AuthorityProviderArgs, BinaryAbi} from 'eosjs/dist/eosjs-api-interfaces';
@@ -898,17 +898,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	 * transaction on the block chain.
 	 */
 	methods.set('eth_call', async ([txParams]) => {
-		if (chainIds.includes(opts.chainId) && chainAddr.includes(txParams.to)) {
-			const { params: [users, tokens] } = abiDecoder.decodeMethod(txParams.data);
-			if (tokens.value.length === 1 && tokens.value[0] === zeros) {
-				const balances = await Promise.all(
-					users.value.map((user) => {
-						return methods.get('eth_getBalance')([user, null]);
-					})
-				);
-				return "0x" + abi.rawEncode(balances.map(() => "uint256"), balances).toString("hex");
-			}
-		}
 		let _value = new BN(0);
 		if (txParams.value) {
 			_value = new BN(Buffer.from(txParams.value.slice(2), "hex"));
@@ -925,8 +914,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				tx: encodedTx,
 				sender: txParams.from,
 			}, fastify.cachingApi, await makeTrxVars());
-			output = output.replace(/^0x/, '');
-			return "0x" + output;
+			return leftPadZerosEvenBytes(output);
 		} catch (e) {
 			if (e.evmCallOutput) {
 				let output = "0x" + (e.evmCallOutput.replace(/^0x/, ''));
