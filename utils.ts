@@ -109,7 +109,7 @@ export function buildLogsObject(logs: any[], blHash: string, blNumber: string, t
 
 export function makeLogObject(rawActionDocument, log, forSubscription) {
     let baseLogObj = {
-        address: '0x' + log.address,
+        address: toChecksumAddress('0x' + log.address),
         blockHash: '0x' + rawActionDocument['@raw']['block_hash'],
         blockNumber: numToHex(rawActionDocument['@raw']['block']),
         data: '0x' + log.data,
@@ -150,6 +150,24 @@ export function logFilterMatch(log, addressFilter, topicsFilter) {
     }
 
     return true;
+}
+
+export function leftPadZerosEvenBytes(value) {
+    let removed = value.replace(/^0x/, '');
+    return removed.length % 2 === 0 ? `0x${removed}` : `0x0${removed}`
+}
+
+export function leftPadZerosToWidth(value, width) {
+    let removed = value.replace(/^0x/, '');
+    return `0x${removed.padStart(width, '0')}`
+}
+
+export function removeLeftZeros(value, zeroXPrefix=true) {
+    let removed =`${value.replace(/^0x/, '').replace(/^(0)*/, '')}`;
+    if (removed === '')
+        removed = '0';
+
+    return zeroXPrefix ? `0x${removed}` : removed;
 }
 
 export function removeZeroHexFromFilter(filter, trimLeftZeros=false) {
