@@ -578,7 +578,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				gas: gas,
 				input: receipt.input_data,
 				to: toChecksumAddress(receipt['to']),
-				value: '0x' + receipt.value
+				value: removeLeftZeros(receipt.value)
 			},
 			result: {
 				gasUsed: gas,
@@ -614,7 +614,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				gas: '0x' + itx.gas,
 				input: '0x' + itx.input,
 				to: toChecksumAddress(itx.to),
-				value: '0x' + itx.value
+				value: removeLeftZeros(itx.value)
 			},
 			result: {
 				gasUsed: '0x' + itx.gasUsed,
