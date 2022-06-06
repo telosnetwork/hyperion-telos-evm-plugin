@@ -481,14 +481,14 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					blockHash: blockHash,
 					blockNumber: removeLeftZeros(blockHex),
 					from: toChecksumAddress(receipt['from']),
-					gas: "0x" + Number(receipt['gasused']).toString(16),
-					gasPrice: "0x" + Number(receipt['charged_gas_price']).toString(16),
+					gas: removeLeftZeros(numToHex(receipt['gasused'])),
+					gasPrice: removeLeftZeros(numToHex(receipt['charged_gas_price'])),
 					hash: receipt['hash'],
 					input: receipt['input_data'],
-					nonce: "0x" + Number(receipt['nonce']).toString(16),
+					nonce: removeLeftZeros(numToHex(receipt['nonce'])),
 					to: toChecksumAddress(receipt['to']),
-					transactionIndex: "0x" + Number(receipt['trx_index']).toString(16),
-					value: "0x" + Number(receipt['value']).toString(16),
+					transactionIndex: removeLeftZeros(numToHex(receipt['trx_index'])),
+					value: removeLeftZeros(numToHex(receipt['value'])),
 					v, r, s
 				});
 			}
