@@ -800,50 +800,60 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			gasLimit: 10000000000000000
 		});
 
-        const gas = await fastify.evm.telos.estimateGas({
-            account: opts.signer_account,
-            ram_payer: fastify.evm.telos.telosContract,
-            tx: encodedTx,
-            sender: txParams.from,
-        }, fastify.cachingApi, await makeTrxVars());
+		try {
+			const gas = await fastify.evm.telos.estimateGas({
+				account: opts.signer_account,
+				ram_payer: fastify.evm.telos.telosContract,
+				tx: encodedTx,
+				sender: txParams.from,
+			}, fastify.cachingApi, await makeTrxVars());
 
-		if (gas.startsWith(REVERT_FUNCTION_SELECTOR)) {
-			let err = new TransactionError('Transaction reverted');
-			err.errorMessage = `execution reverted: ${parseRevertReason(gas)}`;
-			err.data = gas;
-			throw err;
-		}
-		if (gas.startsWith(REVERT_PANIC_SELECTOR)) {
-			let err = new TransactionError('Transaction reverted');
-			err.errorMessage = `execution reverted: ${parsePanicReason(gas)}`;
-			err.data = gas;
-			throw err;
-		}
-
-		/*  from contract:
-			if (estimate_gas) {
-				if (result.er != ExitReason::returned) {
-					eosio::print("0x" + bin2hex(result.output));
-				} else {
-					eosio::print("0x" + intx::hex(gas_used));
-				}
-				eosio::check(false, "");
+			if (gas.startsWith(REVERT_FUNCTION_SELECTOR) || gas.startsWith(REVERT_PANIC_SELECTOR)) {
+				handleGasEstimationError(gas);
 			}
 
-			if gas == '0x', the transaction reverted without any output
-		*/
-		if (gas == '0x') {
-			let err = new TransactionError('Transaction reverted');
-			err.errorMessage = `execution reverted: no output`;
-			err.data = gas;
-			throw err;
+			/*  from contract:
+                if (estimate_gas) {
+                    if (result.er != ExitReason::returned) {
+                        eosio::print("0x" + bin2hex(result.output));
+                    } else {
+                        eosio::print("0x" + intx::hex(gas_used));
+                    }
+                    eosio::check(false, "");
+                }
+
+                if gas == '0x', the transaction reverted without any output
+            */
+			if (gas == '0x') {
+				let err = new TransactionError('Transaction reverted');
+				err.errorMessage = `execution reverted: no output`;
+				err.data = gas;
+				throw err;
+			}
+
+			let toReturn = `${Math.ceil((parseInt(gas, 16) * GAS_OVER_ESTIMATE_MULTIPLIER)).toString(16)}`;
+			Logger.log(`From contract, gas estimate is ${gas}, with multiplier returning ${toReturn}`)
+			//let toReturn = `0x${Math.ceil((parseInt(gas, 16) * GAS_OVER_ESTIMATE_MULTIPLIER)).toString(16)}`;
+			return removeLeftZeros(toReturn);
+		} catch (e) {
+			handleGasEstimationError(e.receipt.output);
+		}
+	});
+
+	function handleGasEstimationError(output) {
+		let err = new TransactionError('Transaction reverted');
+		err.data = output;
+
+		if (output.startsWith(REVERT_FUNCTION_SELECTOR)) {
+			err.errorMessage = `execution reverted: ${parseRevertReason(output)}`;
+		} else if (output.startsWith(REVERT_PANIC_SELECTOR)) {
+			err.errorMessage = `execution reverted: ${parsePanicReason(output)}`;
+		} else {
+			err.errorMessage = `execution reverted without reason provided`
 		}
 
-		let toReturn = `${Math.ceil((parseInt(gas, 16) * GAS_OVER_ESTIMATE_MULTIPLIER)).toString(16)}`;
-		Logger.log(`From contract, gas estimate is ${gas}, with multiplier returning ${toReturn}`)
-		//let toReturn = `0x${Math.ceil((parseInt(gas, 16) * GAS_OVER_ESTIMATE_MULTIPLIER)).toString(16)}`;
-		return removeLeftZeros(toReturn);
-	});
+		throw err;
+	}
 
     /**
      * Returns the current gas price in wei.
