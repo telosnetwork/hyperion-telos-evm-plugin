@@ -55,7 +55,7 @@ export function numToHex(input: number | string) {
 
 export function toChecksumAddress(address) {
     if (!address)
-        return address
+        return null
 
     address = address.toLowerCase().replace('0x', '')
     if (address.length != 40)
