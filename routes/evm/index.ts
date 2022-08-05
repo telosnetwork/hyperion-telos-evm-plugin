@@ -844,6 +844,9 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		let err = new TransactionError('Transaction reverted');
 		err.data = output;
 
+		if (!output.startsWith('0x'))
+			output = `0x${output}`
+
 		if (output.startsWith(REVERT_FUNCTION_SELECTOR)) {
 			err.errorMessage = `execution reverted: ${parseRevertReason(output)}`;
 		} else if (output.startsWith(REVERT_PANIC_SELECTOR)) {
