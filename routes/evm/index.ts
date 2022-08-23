@@ -976,7 +976,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				} else {
 					// Borrowed message from hardhat node
 					if (receipt?.errors?.length > 0 && receipt.errors[0].toLowerCase().indexOf('revert') !== -1)
-						err.errorMessage = `Transaction reverted: function selector was not recognized.`;
+						err.errorMessage = `Transaction reverted: No reason string given.`;
 					else
 						err.errorMessage = `Error: VM Exception while processing transaction: ${receipt?.errors[0]}`;
 				}
