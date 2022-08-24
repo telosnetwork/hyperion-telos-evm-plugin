@@ -293,10 +293,16 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			sigString = await getSignature(receiptDoc.trx_id);
 		}
 		if (isNil(receipt.v))  {
-			let sig = Signature.fromString(sigString);
-			v = `0x${sig.i.toString(16).padStart(64, '0')}`;
-			r = `0x${sig.r.toHex().padStart(64, '0')}`;
-			s = `0x${sig.s.toHex()}`;
+			if (!sigString) {
+				v = '0x00';
+				r = '0x00000000000000000000000000000000000000000000000000000000000000';
+				s = '0x00000000000000000000000000000000000000000000000000000000000000';
+			} else {
+				let sig = Signature.fromString(sigString);
+				v = `0x${sig.i.toString(16).padStart(64, '0')}`;
+				r = `0x${sig.r.toHex().padStart(64, '0')}`;
+				s = `0x${sig.s.toHex()}`;
+			}
 		} else {
 			v = "0x" + receipt.v;
 			r = "0x" + receipt.r;
