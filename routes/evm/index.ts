@@ -16,7 +16,8 @@ import DebugLogger from "../../debugLogging";
 import {AuthorityProvider, AuthorityProviderArgs, BinaryAbi} from 'eosjs/dist/eosjs-api-interfaces';
 import {PushTransactionArgs} from 'eosjs/dist/eosjs-rpc-interfaces'
 import moment from "moment";
-import {Api} from 'eosjs'
+import {Api} from 'eosjs';
+import {ethers} from 'ethers';
 import {JsSignatureProvider} from 'eosjs/dist/eosjs-jssig'
 import {PrivateKey,Signature} from 'eosjs-ecc'
 import {TransactionVars} from '@telosnetwork/telosevm-js'
@@ -917,13 +918,13 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	 * transaction on the block chain.
 	 */
 	methods.set('eth_call', async ([txParams]) => {
-		let _value = new BN(0);
+		let _value = ethers.BigNumber.from(0);
 		if (txParams.value) {
-			_value = new BN(Buffer.from(txParams.value.slice(2), "hex"));
+			_value = ethers.BigNumber.from(txParams.value);
 		}
 		const obj = {
 			...txParams,
-			value: _value,
+			value: _value.toHexString(),
 			sender: txParams.from,
 		};
 		const encodedTx = await fastify.evm.createEthTx(obj);
