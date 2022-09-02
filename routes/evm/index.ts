@@ -924,7 +924,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		}
 		const obj = {
 			...txParams,
-			value: _value.toHexString(),
+			value: _value.toHexString().replace(/^0x/, ''),
 			sender: txParams.from,
 		};
 		const encodedTx = await fastify.evm.createEthTx(obj);
