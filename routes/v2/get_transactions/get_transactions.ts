@@ -71,6 +71,12 @@ async function getTransactions(fastify: FastifyInstance, request: FastifyRequest
 	const transactions = results.hits;
 	for (let transaction of transactions) {
 		transaction = transaction._source;
+		// TODO: This should be handled differently, currently indexing transactions without a valid signature fails
+		//    so we end up with transaction documents without an @raw object set, need to still index those transactions
+		// OR: 1.5 fixes this, hopefully sooner than 1.0 needs to support this
+		if (!transaction._source["@raw"])
+			continue;
+
 		response.transactions.push(formatRawToTransaction(transaction))
 	}
 
