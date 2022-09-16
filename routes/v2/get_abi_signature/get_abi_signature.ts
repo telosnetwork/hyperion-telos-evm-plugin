@@ -25,7 +25,7 @@ async function getAbiSignature(fastify: FastifyInstance, request: FastifyRequest
 		let text_signature = '';
 		const dirResponse = await sigDirectoryAxios.get(`/api/v1/signatures/?hex_signature=0x${trimmedHex}`)
 		if (dirResponse?.data?.results?.length >  0) {
-			text_signature = dirResponse.data.results[0].text_signature
+			text_signature = dirResponse.data.results[dirResponse.data.results.length - 1].text_signature
 		}
 
 		fastify.redis.set(hash, JSON.stringify({text_signature}), 'EX', SIG_CACHE_EXPIRE).catch(console.log);
