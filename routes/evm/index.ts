@@ -3,14 +3,13 @@ import {TelosEvmConfig} from "../../types";
 import Bloom from "../../bloom";
 import {
 	toChecksumAddress,
-	blockHexToHash,
 	numToHex,
 	removeZeroHexFromFilter,
 	buildLogsObject,
 	logFilterMatch,
 	makeLogObject,
 	BLOCK_TEMPLATE,
-	getParentBlockHash, EMPTY_LOGS, removeLeftZeros, leftPadZerosEvenBytes
+	NULL_HASH, EMPTY_LOGS, removeLeftZeros, leftPadZerosEvenBytes
 } from "../../utils"
 import DebugLogger from "../../debugLogging";
 import {AuthorityProvider, AuthorityProviderArgs} from 'eosjs/dist/eosjs-api-interfaces';
@@ -312,6 +311,26 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		}
 	}
 
+    async function getParentBlockHash(blockNumberHex: string) {
+        let blockNumber = parseInt(blockNumberHex, 16) - 1;
+        const results = await fastify.elastic.search({
+            index: `${fastify.manager.chain}-delta-*`,
+            body: {
+                size: 1,
+                query: {
+                    bool: {
+                        must: [{ term: { "@global.block_num": blockNumber } }]
+                    }
+                }
+            }
+        });
+        let blockDelta = results?.body?.hits?.hits[0]?._source;
+        if (blockDelta)
+            return "0x" + blockDelta["@evmBlockHash"];
+        else
+            return NULL_HASH;
+    }
+
 	async function getVRS(receiptDoc): Promise<any> {
 		let v;
 		let r;
@@ -411,24 +430,12 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			//Logger.log(`searching action by hash: ${trxHash} got result: \n${JSON.stringify(results?.body)}`)
 			let blockDelta = results?.body?.hits?.hits[0]?._source;
 			let blockNumberHex = '0x' + blockNumber.toString(16);
-			let timestamp;
-			let blockHash;
-			if (blockDelta) {
-				timestamp = new Date(blockDelta['@timestamp'] + 'Z').getTime() / 1000 | 0;
-				let blockHashFromDelta = blockDelta["@evmBlockHash"];
-				if (blockHashFromDelta)
-					blockHash = (blockHashFromDelta.startsWith("0x") ? "" : "0x") + blockHashFromDelta;
-				else
-					blockHash = blockHexToHash(blockNumberHex);
-			} else {
-				// not found in the index, do our best!
-				timestamp = 0;
-				blockHash = blockHexToHash(blockNumberHex);
-			}
+			let timestamp = new Date(blockDelta['@timestamp']).getTime() / 1000;
+            let blockHash = '0x' + blockDelta["@evmBlockHash"];
 
 			return Object.assign({}, BLOCK_TEMPLATE, {
 				gasUsed: "0x0",
-				parentHash: getParentBlockHash(blockNumberHex),
+				parentHash: await getParentBlockHash(blockNumberHex),
 				hash: blockHash,
 				logsBloom: "0x" + new Bloom().bitvector.toString("hex"),
 				number: blockNumberHex,
@@ -465,7 +472,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 			return Object.assign({}, BLOCK_TEMPLATE, {
 				gasUsed: "0x0",
-				parentHash: getParentBlockHash(blockNumberHex),
+				parentHash: await getParentBlockHash(blockNumberHex),
 				hash: "0x" + blockDelta["@evmBlockHash"],
 				logsBloom: "0x" + new Bloom().bitvector.toString("hex"),
 				number: removeLeftZeros(blockNumberHex),
@@ -535,7 +542,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 		return Object.assign({}, BLOCK_TEMPLATE, {
 			gasUsed: removeLeftZeros(numToHex(gasUsedBlock)),
-			parentHash: getParentBlockHash(blockHex),
+			parentHash: await getParentBlockHash(blockHex),
 			hash: blockHash,
 			logsBloom: logsBloom,
 			number: removeLeftZeros(blockHex),
