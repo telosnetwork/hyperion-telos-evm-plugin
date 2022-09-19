@@ -487,55 +487,65 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 
 	async function reconstructBlockFromReceipts(receipts: any[], full: boolean) {
-		let blockHash;
-		let blockHex: string;
-		let gasLimit = 0;
-		let gasUsedBlock = 0;
-		let timestamp: number;
-		let logsBloom: any = null;
-		let bloom = new Bloom();
-		const trxs = [];
-		//Logger.log(`Reconstructing block from receipts: ${JSON.stringify(receipts)}`)
-		for (const receiptDoc of receipts) {
-			const {v, r, s} = await getVRS(receiptDoc._source);
-			const receipt = receiptDoc._source['@raw'];
+		try {
+            let blockHash;
+            let blockHex: string;
+            let gasLimit = 0;
+            let gasUsedBlock = 0;
+            let timestamp: number;
+            let logsBloom: any = null;
+            let bloom = new Bloom();
+            const trxs = [];
+            //Logger.log(`Reconstructing block from receipts: ${JSON.stringify(receipts)}`)	
+            for (const receiptDoc of receipts) {
+                const {v, r, s} = await getVRS(receiptDoc._source);
+                const receipt = receiptDoc._source['@raw'];
 
-			gasLimit += receipt["gas_limit"];
+                gasLimit += receipt["gas_limit"];
 
-			let trxGasUsedBlock = receipt["gasusedblock"];
-			if (trxGasUsedBlock > gasUsedBlock) {
-				gasUsedBlock = trxGasUsedBlock;
-			}
-			if (!blockHash) {
-				blockHash = '0x' + receipt['block_hash'];
-			}
-			if (!blockHex) {
-				blockHex = '0x' + Number(receipt['block']).toString(16);
-			}
-			if (!timestamp) {
-				timestamp = new Date(receiptDoc._source['@timestamp'] + 'Z').getTime() / 1000 | 0;
-			}
-			if (receipt['logsBloom']){
-				bloom.or(new Bloom(Buffer.from(receipt['logsBloom'], "hex")));
-			}
-			if (!full) {
-				trxs.push(receipt['hash']);
-			} else {
-				trxs.push({
-					blockHash: blockHash,
-					blockNumber: removeLeftZeros(blockHex),
-					from: toChecksumAddress(receipt['from']),
-					gas: removeLeftZeros(numToHex(receipt['gasused'])),
-					gasPrice: removeLeftZeros(numToHex(receipt['charged_gas_price'])),
-					hash: receipt['hash'],
-					input: receipt['input_data'],
-					nonce: removeLeftZeros(numToHex(receipt['nonce'])),
-					to: toChecksumAddress(receipt['to']),
-					transactionIndex: removeLeftZeros(numToHex(receipt['trx_index'])),
-					value: removeLeftZeros(numToHex(receipt['value'])),
-					v, r, s
-				});
-			}
+                let trxGasUsedBlock = receipt["gasusedblock"];
+                if (trxGasUsedBlock > gasUsedBlock) {
+                    gasUsedBlock = trxGasUsedBlock;
+                }
+                if (!blockHash) {
+                    blockHash = '0x' + receipt['block_hash'];
+                }
+                if (!blockHex) {
+                    blockHex = '0x' + Number(receipt['block']).toString(16);
+                }
+                if (!timestamp) {
+                    timestamp = new Date(receiptDoc._source['@timestamp'] + 'Z').getTime() / 1000 | 0;
+                }
+                if (receipt['logsBloom']){
+                    bloom.or(new Bloom(Buffer.from(receipt['logsBloom'], "hex")));
+                }
+                let finalFrom = receipt['from'];
+                if (receipt['from'] == zeros)
+                    finalFrom = toChecksumAddress(receipt['from']);
+                if (!full) {
+                    trxs.push(receipt['hash']);
+                } else {
+                    const hexBlockNum = removeLeftZeros(blockHex);
+                    const hexGas = removeLeftZeros(numToHex(receipt['gasused']));
+                    const hexGasPrice = removeLeftZeros(numToHex(receipt['charged_gas_price']));
+                    const hexNonce = removeLeftZeros(numToHex(receipt['nonce']));
+                    const hexTransactionIndex = removeLeftZeros(numToHex(receipt['trx_index']));
+                    const hexValue = removeLeftZeros(numToHex(receipt['value']));
+                    trxs.push({
+                        blockHash: blockHash,
+                        blockNumber: hexBlockNum,
+                        from: finalFrom,
+                        gas: hexGas,
+                        gasPrice: hexGasPrice,
+                        hash: receipt['hash'],
+                        input: receipt['input_data'],
+                        nonce: hexNonce,
+                        to: toChecksumAddress(receipt['to']),
+                        transactionIndex: hexTransactionIndex,
+                        value: hexValue,
+                        v, r, s
+                    });
+                }
 		}
 
 		logsBloom = "0x" + bloom.bitvector.toString("hex");
@@ -549,6 +559,10 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			timestamp: removeLeftZeros(timestamp?.toString(16)),
 			transactions: trxs,
 		});
+		} catch (e) {
+			console.log(e);
+			return null;
+		}
 	}
 
 	async function getReceiptsByTerm(term: string, value: any) {
