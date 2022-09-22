@@ -387,7 +387,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				timestamp = new Date(blockDelta['@timestamp'] + 'Z').getTime() / 1000 | 0;
 				let blockHashFromDelta = blockDelta["@evmBlockHash"];
 				if (blockHashFromDelta)
-					blockHash = "0x" + blockHashFromDelta;
+					blockHash = (blockHashFromDelta.startsWith("0x") ? "" : "0x") + blockHashFromDelta;
 				else
 					blockHash = blockHexToHash(blockNumberHex);
 			} else {
