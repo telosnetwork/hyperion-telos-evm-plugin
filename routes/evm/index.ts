@@ -686,7 +686,16 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		if (blockParam == "earliest")
 			return "0x0";
 
-		return blockParam;
+		if (typeof blockParam === 'number') {
+			// We were passed a number, convert to hex string
+			return `0x${(blockParam as number).toString(16)}`
+		} else if (!blockParam.startsWith('0x')) {
+			// Assume this is a number as string, missing the hex prefix, parse number and turn to hex string
+			return `0x${parseInt(blockParam, 10).toString(16)}`
+		} else {
+			// We were given the proper format of a 0x prefixed hex value, return it
+			return blockParam;
+		}
 	}
 
 
