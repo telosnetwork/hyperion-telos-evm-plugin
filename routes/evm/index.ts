@@ -31,7 +31,6 @@ import {
 
 const BN = require('bn.js');
 const GAS_PRICE_OVERESTIMATE = 1.00
-const ACTION_BLOCK_LAG = 6;
 
 const RECEIPT_LOG_START = "RCPT{{";
 const RECEIPT_LOG_END = "}}RCPT";
@@ -621,7 +620,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					}
 				}
 			});
-			let currentBlockNumber = "0x" + (Number(results?.body?.hits?.hits[0]?._source["@global"].block_num) - ACTION_BLOCK_LAG).toString(16);
+			let currentBlockNumber = "0x" + (Number(results?.body?.hits?.hits[0]?._source["@global"].block_num)).toString(16);
 			fastify.cacheManager.setCachedData(hash, path, currentBlockNumber);
 			return currentBlockNumber;
 		}
