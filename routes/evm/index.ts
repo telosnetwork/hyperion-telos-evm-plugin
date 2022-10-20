@@ -1307,12 +1307,15 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			// Logger.log(`Logs query result: ${JSON.stringify(searchResults)}`)
 			// processing
 			const results = [];
-			let logCount = 0;
 			for (const hit of searchResults.body.hits.hits) {
 				const doc = hit._source;
 				if (doc['@raw'] && doc['@raw']['logs']) {
+					let logCount = 0;
 					for (const log of doc['@raw']['logs']) {
 						const block = doc['@raw']['block'];
+						log.logIndex = logCount;
+						logCount++;
+
 						if (!blockHash) {
 							if (fromBlock > block || toBlock < block) {
 								// console.log('filter out by from/to block');
@@ -1328,9 +1331,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 						if (!logFilterMatch(log, addressFilter, topicsFilter))
 							continue;
 
-						log.logIndex = logCount;
 						results.push(makeLogObject(doc, log, false));
-						logCount++;
 					}
 				}
 			}
