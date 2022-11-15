@@ -112,7 +112,7 @@ function jsonRPC2Error(reply: FastifyReply, type: string, requestId: string, mes
 	switch (type) {
 		case "InvalidRequest": {
 			if (reply)
-				reply.statusCode = 400;
+				reply.statusCode = 200;
 			errorCode = -32600;
 			break;
 		}
@@ -893,7 +893,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
         }
     });
 
-	/**
 	 * Returns the balance of the account of given address.
 	 */
 	methods.set('eth_getBalance', async ([address]) => {

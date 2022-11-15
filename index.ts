@@ -1,7 +1,7 @@
 import {HyperionPlugin} from "../../hyperion-plugin";
 import {FastifyInstance} from "fastify";
 import fetch from "node-fetch";
-import autoLoad from 'fastify-autoload';
+import autoLoad from '@fastify/autoload';
 import {join} from "path";
 import {Transaction} from '@ethereumjs/tx';
 import Common, {default as ethCommon} from '@ethereumjs/common';
