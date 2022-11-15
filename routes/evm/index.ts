@@ -118,7 +118,7 @@ function jsonRPC2Error(reply: FastifyReply, type: string, requestId: string, mes
 		}
 		case "MethodNotFound": {
 			if (reply)
-				reply.statusCode = 404;
+				reply.statusCode = 200;
 			errorCode = -32601;
 			break;
 		}
