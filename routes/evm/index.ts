@@ -894,13 +894,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
     });
 
 	/**
-	 * Returns 0 as Telos EVM doesn't support priority gas fees
-	 */
-	methods.set('eth_maxPriorityFeePerGas', () => {
-		return '0x0';
-	});
-
-	/**
 	 * Returns the balance of the account of given address.
 	 */
 	methods.set('eth_getBalance', async ([address]) => {
