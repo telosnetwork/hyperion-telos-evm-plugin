@@ -893,6 +893,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
         }
     });
 
+	/*
 	 * Returns the balance of the account of given address.
 	 */
 	methods.set('eth_getBalance', async ([address]) => {
