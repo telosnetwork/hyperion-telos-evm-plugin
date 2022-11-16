@@ -1409,7 +1409,8 @@
     "safe-buffer" "^5.1.2"
     "which-typed-array" "^1.1.2"
 
-"uWebSockets.js@uNetworking/uWebSockets.js#v20.4.0":
+"uWebSockets.js@github:uNetworking/uWebSockets.js#v20.15.0":
+  "integrity" "sha512-1qSB889nwIQRvM0cb8dMks35d0QI80U5/AnEoK6o/0+Q5eeA6g1vR6heyggVgOXszwBRyyDSgoEcAeQ4EtptRw=="
   "resolved" "git+ssh://git@github.com/uNetworking/uWebSockets.js.git#65f39bdff763be3883e6cf18e433dd4fec155845"
   "version" "20.4.0"
 
