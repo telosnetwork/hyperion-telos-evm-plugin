@@ -1410,9 +1410,8 @@
     "which-typed-array" "^1.1.2"
 
 "uWebSockets.js@github:uNetworking/uWebSockets.js#v20.15.0":
-  "integrity" "sha512-1qSB889nwIQRvM0cb8dMks35d0QI80U5/AnEoK6o/0+Q5eeA6g1vR6heyggVgOXszwBRyyDSgoEcAeQ4EtptRw=="
-  "resolved" "git+ssh://git@github.com/uNetworking/uWebSockets.js.git#65f39bdff763be3883e6cf18e433dd4fec155845"
-  "version" "20.4.0"
+  "resolved" "git+ssh://git@github.com/uNetworking/uWebSockets.js.git#77bc1fd5577ae42b56675912eb8481a31f3fefd2"
+  "version" "20.15.0"
 
 "web3-eth-abi@^1.2.1":
   "integrity" "sha512-svhYrAlXP9XQtV7poWKydwDJq2CaNLMtmKydNXoOBLcQec6yGMP+v20pgrxF2H6wyTK+Qy0E3/5ciPOqC/VuoQ=="
