@@ -444,7 +444,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				return null;
 			}
 
-			let timestamp = new Date(blockDelta['@timestamp'] + 'Z').getTime() / 1000 | 0;
+			let timestamp = new Date(blockDelta['@timestamp'] + 'Z').getTime() / 1000;
 			let blockNumberHex = addHexPrefix(blockDelta["@global"].block_num.toString(16));
 
 			return Object.assign({}, BLOCK_TEMPLATE, {
@@ -468,9 +468,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
             let blockHash;
             let blockHex: string;
             let blockNum: number;
-            let gasLimitBlock = 0;
-            let gasUsedBlock = 0;
-            let timestamp: number;
             let logsBloom: any = null;
             let bloom = new Bloom();
             const trxs = [];
@@ -479,21 +476,12 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
                 const {v, r, s} = await getVRS(receiptDoc._source);
                 const receipt = receiptDoc._source['@raw'];
 
-                gasLimitBlock += receipt["gas_limit"];
-
-                let trxGasUsedBlock = receipt["gasusedblock"];
-                if (trxGasUsedBlock > gasUsedBlock) {
-                    gasUsedBlock = trxGasUsedBlock;
-                }
                 if (!blockHash) {
                     blockHash = addHexPrefix(receipt['block_hash']);
                 }
                 if (!blockHex) {
                     blockNum = Number(receipt['block']);
                     blockHex = addHexPrefix(blockNum.toString(16));
-                }
-                if (!timestamp) {
-                    timestamp = new Date(receiptDoc._source['@timestamp'] + 'Z').getTime() / 1000 | 0;
                 }
                 if (receipt['logsBloom']){
                     bloom.or(new Bloom(Buffer.from(receipt['logsBloom'], "hex")));
@@ -528,18 +516,22 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		}
 
         const block = getBlockByNumber(blockNum);
+        const timestamp = new Date(block['@timestamp'] + 'Z').getTime() / 1000;
+        const gasUsedBlock = addHexPrefix(removeLeftZeros(block['gasUsed']));
+        const gasLimitBlock = addHexPrefix(removeLeftZeros(block['gasLimit']));
 
 		logsBloom = addHexPrefix(bloom.bitvector.toString("hex"));
 
 		return Object.assign({}, BLOCK_TEMPLATE, {
-			gasUsed: removeLeftZeros(numToHex(gasUsedBlock)),
-            gasLimit: removeLeftZeros(numToHex(gasLimitBlock)),
+			gasUsed: gasUsedBlock,
+            gasLimit: gasLimitBlock,
 			parentHash: await getParentBlockHash(blockHex),
 			hash: blockHash,
 			logsBloom: logsBloom,
 			number: removeLeftZeros(blockHex),
 			timestamp: removeLeftZeros(timestamp?.toString(16)),
 			transactions: trxs,
+            size: addHexPrefix(receipts.length.toString(16)),
 
             receiptsRoot: block['@receiptsRootHash'],
             transactionsRoot: block['@transactionsRoot']
