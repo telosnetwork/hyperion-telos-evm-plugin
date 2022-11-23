@@ -19,7 +19,7 @@ import {ethers} from 'ethers';
 import {JsSignatureProvider} from 'eosjs/dist/eosjs-jssig'
 import {PrivateKey,Signature} from 'eosjs-ecc'
 import {TransactionVars} from '@telosnetwork/telosevm-js'
-import {isNil} from "lodash";
+import { addHexPrefix } from '@ethereumjs/util';
 import {
 	API,
 	Name,
@@ -325,38 +325,16 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
         });
         let blockDelta = results?.body?.hits?.hits[0]?._source;
         if (blockDelta)
-            return "0x" + blockDelta["@evmBlockHash"];
+            return addHexPrefix(blockDelta["@evmBlockHash"]);
         else
             return NULL_HASH;
     }
 
 	async function getVRS(receiptDoc): Promise<any> {
-		let v;
-		let r;
-		let s;
-		let sigString;
 		let receipt = receiptDoc["@raw"];
-		if (receiptDoc?.signatures?.length > 0) {
-			sigString = receiptDoc.signatures[0];
-		} else {
-			sigString = await getSignature(receiptDoc.trx_id);
-		}
-		if (isNil(receipt.v))  {
-			if (!sigString) {
-				v = '0x00';
-				r = '0x00000000000000000000000000000000000000000000000000000000000000';
-				s = '0x00000000000000000000000000000000000000000000000000000000000000';
-			} else {
-				let sig = Signature.fromString(sigString);
-				v = `0x${sig.i.toString(16)}`;
-				r = `0x${sig.r.toHex().padStart(64, '0')}`;
-				s = `0x${sig.s.toHex()}`;
-			}
-		} else {
-			v = "0x" + receipt.v;
-			r = "0x" + receipt.r;
-			s = "0x" + receipt.s;
-		}
+		const v = addHexPrefix(receipt.v);
+		const r = addHexPrefix(receipt.r);
+		const s = addHexPrefix(receipt.s);
 
 		return {v,r,s};
 	}
@@ -428,15 +406,15 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			});
 			//Logger.log(`searching action by hash: ${trxHash} got result: \n${JSON.stringify(results?.body)}`)
 			let blockDelta = results?.body?.hits?.hits[0]?._source;
-			let blockNumberHex = '0x' + blockNumber.toString(16);
+			let blockNumberHex = addHexPrefix(blockNumber.toString(16));
 			let timestamp = new Date(blockDelta['@timestamp']).getTime() / 1000;
-            let blockHash = '0x' + blockDelta["@evmBlockHash"];
+            let blockHash = addHexPrefix(blockDelta["@evmBlockHash"]);
 
 			return Object.assign({}, BLOCK_TEMPLATE, {
 				gasUsed: "0x0",
 				parentHash: await getParentBlockHash(blockNumberHex),
 				hash: blockHash,
-				logsBloom: "0x" + new Bloom().bitvector.toString("hex"),
+				logsBloom: addHexPrefix(new Bloom().bitvector.toString("hex")),
 				number: blockNumberHex,
 				timestamp: removeLeftZeros(timestamp?.toString(16)),
 				transactions: [],
@@ -467,13 +445,13 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			}
 
 			let timestamp = new Date(blockDelta['@timestamp'] + 'Z').getTime() / 1000 | 0;
-			let blockNumberHex = '0x' + blockDelta["@global"].block_num.toString(16);
+			let blockNumberHex = addHexPrefix(blockDelta["@global"].block_num.toString(16));
 
 			return Object.assign({}, BLOCK_TEMPLATE, {
 				gasUsed: "0x0",
 				parentHash: await getParentBlockHash(blockNumberHex),
-				hash: "0x" + blockDelta["@evmBlockHash"],
-				logsBloom: "0x" + new Bloom().bitvector.toString("hex"),
+				hash: addHexPrefix(blockDelta["@evmBlockHash"]),
+				logsBloom: addHexPrefix(new Bloom().bitvector.toString("hex")),
 				number: removeLeftZeros(blockNumberHex),
 				timestamp: removeLeftZeros(timestamp?.toString(16)),
 				transactions: [],
@@ -489,7 +467,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		try {
             let blockHash;
             let blockHex: string;
-            let gasLimit = 0;
+            let blockNum: number;
+            let gasLimitBlock = 0;
             let gasUsedBlock = 0;
             let timestamp: number;
             let logsBloom: any = null;
@@ -500,17 +479,18 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
                 const {v, r, s} = await getVRS(receiptDoc._source);
                 const receipt = receiptDoc._source['@raw'];
 
-                gasLimit += receipt["gas_limit"];
+                gasLimitBlock += receipt["gas_limit"];
 
                 let trxGasUsedBlock = receipt["gasusedblock"];
                 if (trxGasUsedBlock > gasUsedBlock) {
                     gasUsedBlock = trxGasUsedBlock;
                 }
                 if (!blockHash) {
-                    blockHash = '0x' + receipt['block_hash'];
+                    blockHash = addHexPrefix(receipt['block_hash']);
                 }
                 if (!blockHex) {
-                    blockHex = '0x' + Number(receipt['block']).toString(16);
+                    blockNum = Number(receipt['block']);
+                    blockHex = addHexPrefix(blockNum.toString(16));
                 }
                 if (!timestamp) {
                     timestamp = new Date(receiptDoc._source['@timestamp'] + 'Z').getTime() / 1000 | 0;
@@ -529,7 +509,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
                     const hexGasPrice = removeLeftZeros(numToHex(receipt['charged_gas_price']));
                     const hexNonce = removeLeftZeros(numToHex(receipt['nonce']));
                     const hexTransactionIndex = removeLeftZeros(numToHex(receipt['trx_index']));
-                    const hexValue = '0x' + receipt['value'];
+                    const hexValue = addHexPrefix(receipt['value']);
                     trxs.push({
                         blockHash: blockHash,
                         blockNumber: hexBlockNum,
@@ -547,16 +527,22 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
                 }
 		}
 
-		logsBloom = "0x" + bloom.bitvector.toString("hex");
+        const block = getBlockByNumber(blockNum);
+
+		logsBloom = addHexPrefix(bloom.bitvector.toString("hex"));
 
 		return Object.assign({}, BLOCK_TEMPLATE, {
 			gasUsed: removeLeftZeros(numToHex(gasUsedBlock)),
+            gasLimit: removeLeftZeros(numToHex(gasLimitBlock)),
 			parentHash: await getParentBlockHash(blockHex),
 			hash: blockHash,
 			logsBloom: logsBloom,
 			number: removeLeftZeros(blockHex),
 			timestamp: removeLeftZeros(timestamp?.toString(16)),
 			transactions: trxs,
+
+            receiptsRoot: block['@receiptsRootHash'],
+            transactionsRoot: block['@transactionsRoot']
 		});
 		} catch (e) {
 			console.log(e);
@@ -574,6 +560,22 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		});
 		return results?.body?.hits?.hits;
 	}
+
+    async function getBlockByNumber(block_num: number) {
+        const results = await fastify.elastic.search({
+            index: `${fastify.manager.chain}-delta-*`,
+            body: {
+                size: 1,
+                query: {
+                    match: {
+                        '@global.block_num': block_num
+                    }
+                }
+            }
+        });
+
+        return results?.body?.hits?.hits[0]?._source;
+    }
 
 	async function getCurrentBlockNumber(indexed: boolean = false) {
 		if (!indexed) {
@@ -593,7 +595,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				json: true
 			});
 			const blockNum = parseInt(global.rows[0].block_num, 10);
-			const lastOnchainBlock = '0x' + blockNum.toString(16);
+			const lastOnchainBlock = addHexPrefix(blockNum.toString(16));
 			fastify.cacheManager.setCachedData(hash, path, lastOnchainBlock);
 			return lastOnchainBlock;
 		} else {
@@ -620,14 +622,14 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					}
 				}
 			});
-			let currentBlockNumber = "0x" + (Number(results?.body?.hits?.hits[0]?._source["@global"].block_num)).toString(16);
+			let currentBlockNumber = addHexPrefix((Number(results?.body?.hits?.hits[0]?._source["@global"].block_num)).toString(16));
 			fastify.cacheManager.setCachedData(hash, path, currentBlockNumber);
 			return currentBlockNumber;
 		}
 	}
 
 	function makeInitialTrace(receipt, adHoc) {
-		let gas = '0x' + (receipt['gasused'] as number).toString(16)
+		let gas = addHexPrefix((receipt['gasused'] as number).toString(16))
 		let trace: any = {
 			action: {
 				callType: 'call',
@@ -639,7 +641,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			},
 			result: {
 				gasUsed: gas,
-				output: '0x' + receipt.output,
+				output: addHexPrefix(receipt.output),
 			},
 			subtraces: receipt.itxs.length,
 			traceAddress: [],
@@ -650,7 +652,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			trace.error = receipt.errors[0];
 
 		if (!adHoc) {
-			trace.blockHash = '0x' + receipt['block_hash'];
+			trace.blockHash = addHexPrefix(receipt['block_hash']);
 			trace.blockNumber = receipt['block'];
 			trace.transactionHash = receipt['hash'];
 			trace.transactionPosition = receipt['trx_index'];
@@ -668,14 +670,14 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				callType: toOpname(itx.callType),
 				//why is 0x not in the receipt table?
 				from: toChecksumAddress(itx.from),
-				gas: '0x' + itx.gas,
-				input: '0x' + itx.input,
+				gas: addHexPrefix(itx.gas),
+				input: addHexPrefix(itx.input),
 				to: toChecksumAddress(itx.to),
 				value: removeLeftZeros(itx.value)
 			},
 			result: {
-				gasUsed: '0x' + itx.gasUsed,
-				output: '0x' + itx.output,
+				gasUsed: addHexPrefix(itx.gasUsed),
+				output: addHexPrefix(itx.output),
 			},
 			subtraces: itx.subtraces,
 			traceAddress: itx.traceAddress,
@@ -683,7 +685,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		}
 
 		if (!adHoc) {
-			trace.blockHash = '0x' + receipt['block_hash'];
+			trace.blockHash = addHexPrefix(receipt['block_hash']);
 			trace.blockNumber = receipt['block'];
 			trace.transactionHash = receipt['hash'];
 			trace.transactionPosition = receipt['trx_index'];
@@ -706,7 +708,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			return results;
 
 		return {
-			"output": "0x" + receipt.output,
+			"output": addHexPrefix(receipt.output),
 			"stateDiff": null,
 			trace: results,
 			"vmTrace": null
@@ -738,10 +740,10 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 		if (typeof blockParam === 'number') {
 			// We were passed a number, convert to hex string
-			return `0x${(blockParam as number).toString(16)}`
+			return addHexPrefix((blockParam as number).toString(16));
 		} else if (!blockParam.startsWith('0x')) {
 			// Assume this is a number as string, missing the hex prefix, parse number and turn to hex string
-			return `0x${parseInt(blockParam, 10).toString(16)}`
+			return addHexPrefix(parseInt(blockParam, 10).toString(16))
 		} else {
 			// We were given the proper format of a 0x prefixed hex value, return it
 			return blockParam;
@@ -797,7 +799,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	 * Returns the currently configured chain id, a value used in
 	 * replay-protected transaction signing as introduced by EIP-155.
 	 */
-	methods.set('eth_chainId', () => "0x" + opts.chainId.toString(16));
+	methods.set('eth_chainId', () => addHexPrefix(opts.chainId.toString(16)));
 
 	/**
 	 * Returns a list of addresses owned by client.
@@ -824,7 +826,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		try {
 			const account = await fastify.evm.telos.getEthAccount(address.toLowerCase());
 			if (account && account.code && account.code.length > 0) {
-				return account.code;
+				return addHexPrefix(Buffer.from(account.code).toString("hex"));
 			} else {
 				return "0x";
 			}
@@ -908,8 +910,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		let err = new TransactionError('Transaction reverted');
 		err.data = output;
 
-		if (!output.startsWith('0x'))
-			output = `0x${output}`
+        output = addHexPrefix(output);
 
 		if (output.startsWith(REVERT_FUNCTION_SELECTOR)) {
 			err.errorMessage = `execution reverted: ${parseRevertReason(output)}`;
@@ -1087,7 +1088,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 			if (receipt.status === 0) {
 				let err = new TransactionError('Transaction error');
-				let output = `0x${receipt.output}`
+				let output = addHexPrefix(receipt.output);
 				if (output.startsWith(REVERT_FUNCTION_SELECTOR)) {
 					err.errorMessage = `Error: VM Exception while processing transaction: reverted with reason string '${parseRevertReason(output)}'`;
 				} else if (output.startsWith(REVERT_PANIC_SELECTOR)) {
@@ -1101,12 +1102,12 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				}
 
 				err.data = {
-					txHash: `0x${rawResponse.eth.transactionHash}`
+					txHash: addHexPrefix(rawResponse.eth.transactionHash)
 				};
 				throw err;
 			}
 
-			return '0x' + rawResponse.eth.transactionHash;
+			return addHexPrefix(rawResponse.eth.transactionHash);
 		} catch (e) {
 			if (e instanceof TransactionError)
 				throw e;
@@ -1132,7 +1133,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				ram_payer: fastify.evm.telos.telosContract,
 				tx: encodedTx
 			});
-			return "0x" + rawData.eth.transactionHash;
+			return addHexPrefix(rawData.eth.transactionHash);
 		} catch (e) {
 			console.log(e);
 			return null;
@@ -1156,16 +1157,16 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			const receipt = receiptAction['@raw'];
 
 			//Logger.log(`get transaction receipt got ${JSON.stringify(receipt)}`)
-			const _blockHash = '0x' + receipt['block_hash'];
+			const _blockHash = addHexPrefix(receipt['block_hash']);
 			const _blockNum = numToHex(receipt['block']);
-			const _gas = '0x' + (receipt['gasused'] as number).toString(16);
+			const _gas = addHexPrefix((receipt['gasused'] as number).toString(16));
 			let _contractAddr = null;
 			if (receipt['createdaddr']) {
-				_contractAddr = '0x' + receipt['createdaddr'];
+				_contractAddr = addHexPrefix(receipt['createdaddr']);
 			}
 			let _logsBloom = EMPTY_LOGS;
 			if (receipt['logsBloom']) {
-				_logsBloom = '0x' + receipt['logsBloom'];
+				_logsBloom = addHexPrefix(receipt['logsBloom']);
 			}
 
 			return {
@@ -1210,7 +1211,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		//if (!receiptDelta) return null;
 		//const receipt = receiptDelta['@receipt'];
 
-		const _blockHash = '0x' + receipt['block_hash'];
+		const _blockHash = addHexPrefix(receipt['block_hash']);
 		const _blockNum = numToHex(receipt['block']);
 		return {
 			blockHash: _blockHash,
@@ -1529,20 +1530,20 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 									callType: toOpname(itx.callType),
 									//why is 0x not in the receipt table?
 									from: toChecksumAddress(itx.from),
-									gas: '0x' + itx.gas,
-									input: '0x' + itx.input,
+									gas: addHexPrefix(itx.gas),
+									input: addHexPrefix(itx.input),
 									to: toChecksumAddress(itx.to),
-									value: '0x' + itx.value
+									value: addHexPrefix(itx.value)
 								},
-								blockHash: '0x' + doc['@raw']['block_hash'],
+								blockHash: addHexPrefix(doc['@raw']['block_hash']),
 								blockNumber: doc['@raw']['block'],
 								result: {
-									gasUsed: '0x' + itx.gasUsed,
-									output: '0x' + itx.output,
+									gasUsed: addHexPrefix(itx.gasUsed),
+									output: addHexPrefix(itx.output),
 								},
 								subtraces: itx.subtraces,
 								traceAddress: itx.traceAddress,
-								transactionHash: '0x' + doc['@raw']['hash'],
+								transactionHash: addHexPrefix(doc['@raw']['hash']),
 								transactionPosition: doc['@raw']['trx_index'],
 								type: itx.type});
 							logCount++;
