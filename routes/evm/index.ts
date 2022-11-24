@@ -517,8 +517,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
         const block = getBlockByNumber(blockNum);
         const timestamp = new Date(block['@timestamp'] + 'Z').getTime() / 1000;
-        const gasUsedBlock = addHexPrefix(removeLeftZeros(block['gasUsed']));
-        const gasLimitBlock = addHexPrefix(removeLeftZeros(block['gasLimit']));
+        const gasUsedBlock = addHexPrefix(removeLeftZeros(new BN(block['gasUsed']).toString('hex')));
+        const gasLimitBlock = addHexPrefix(removeLeftZeros(new BN(block['gasLimit']).toString('hex')));
 
 		logsBloom = addHexPrefix(bloom.bitvector.toString("hex"));
 
