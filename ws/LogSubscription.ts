@@ -6,14 +6,18 @@ import {logFilterMatch, makeLogObject} from "../utils";
 export default class LogSubscription extends Subscription {
 
     filter: any
+    debug: boolean
 
-    constructor(wsServer: TemplatedApp, id: string, filter: any) {
+    constructor(wsServer: TemplatedApp, id: string, filter: any, debug: boolean) {
         super(wsServer, id);
         this.filter = filter;
+        this.debug = debug;
     }
 
     handleRawAction(rawAction: any): void {
-        console.log(`Subscription ${this.id} got rawAction: ${JSON.stringify(rawAction, null, 4)}`)
+        if (this.debug)
+            console.log(`Subscription ${this.id} got rawAction: ${JSON.stringify(rawAction, null, 4)}`)
+
         const logs = rawAction["@raw"].logs || [];
         let logCount = 0;
         this.filterMatches(logs).forEach(log => {

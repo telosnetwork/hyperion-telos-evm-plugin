@@ -157,7 +157,7 @@ export default class WebsocketRPC {
         const filter = msgObj.params[1];
         const subscriptionId = LogSubscription.makeId(filter);
         if (!this.logSubscriptions.has(subscriptionId)) {
-            this.logSubscriptions.set(subscriptionId, new LogSubscription(this.websocketRPC, subscriptionId, filter))
+            this.logSubscriptions.set(subscriptionId, new LogSubscription(this.websocketRPC, subscriptionId, filter, this.config.debug))
         }
 
         this.logSubscriptions.get(subscriptionId).addWs(ws);
