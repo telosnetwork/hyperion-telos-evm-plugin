@@ -1008,36 +1008,43 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				...transaction,
 				signatures: [signature],
 			})
-			//fastify.readApi.v1.chain.push_transaction(signedTransaction)
-			const sendResult = fastify.readApi.v1.chain.send_transaction(signedTransaction)
-			const output = '';
-			//fastify.readApi.v1.chain.send_transaction2(signedTransaction)
+			// const sendResult = await fastify.readApi.v1.chain.push_transaction(signedTransaction)
+			// const sendResult = await fastify.readApi.v1.chain.send_transaction2(signedTransaction)
+			const sendResult = await fastify.readApi.v1.chain.send_transaction(signedTransaction) as any
+			const error = sendResult.exception.json.error
+			if (error.code !== 3050003) {
+				throw new Error('This node does not have console printing enabled')
+			}
+			const message = error.details[1].message
+			const resultMatch = message.match(/(0[xX][0-9a-fA-F]*)$/)
+			if (resultMatch) {
+				const result = resultMatch[0];
+				const REVERT = "REVERT";
+				const revertLength = REVERT.length;
+				const startResult = message.length - result.length;
+				const beforeResult = message.substring((startResult - revertLength), startResult);
+				if (beforeResult == REVERT) {
+					let output = "0x" + (result.replace(/^0x/, ''));
+					let err = new TransactionError('Transaction reverted');
+					err.data = output;
 
-			/*
-			let output = await fastify.evm.telos.call({
-				account: opts.signer_account,
-				tx: encodedTx,
-				sender: txParams.from,
-			}, fastify.cachingApi, await makeTrxVars());
-			 */
-			return leftPadZerosEvenBytes(output);
-		} catch (e) {
-			if (e.evmCallOutput) {
-				let output = "0x" + (e.evmCallOutput.replace(/^0x/, ''));
-				let err = new TransactionError('Transaction reverted');
-				err.data = output;
+					if (output.startsWith(REVERT_FUNCTION_SELECTOR)) {
+						err.errorMessage = `execution reverted: ${parseRevertReason(output)}`;
+					} else if (output.startsWith(REVERT_PANIC_SELECTOR)) {
+						err.errorMessage = `execution reverted: ${parsePanicReason(output)}`;
+					} else {
+						err.errorMessage = 'Error: Transaction reverted without a reason string';
+					}
 
-				if (output.startsWith(REVERT_FUNCTION_SELECTOR)) {
-					err.errorMessage = `execution reverted: ${parseRevertReason(output)}`;
-				} else if (output.startsWith(REVERT_PANIC_SELECTOR)) {
-					err.errorMessage = `execution reverted: ${parsePanicReason(output)}`;
-				} else {
-					err.errorMessage = 'Error: Transaction reverted without a reason string';
+					throw err;
 				}
 
-				throw err;
+				return leftPadZerosEvenBytes(result);
 			}
 
+			let defaultMessage = `Server Error: Error during call`
+			throw new Error(defaultMessage)
+		} catch (e) {
 			throw e;
 		}
 	});
