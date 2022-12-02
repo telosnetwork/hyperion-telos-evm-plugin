@@ -976,6 +976,9 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		if (tx && tx.startsWith('0x')) tx = tx.substring(2)
 		if (sender && sender.startsWith('0x')) sender = sender.substring(2)
 
+		if (sender && sender === '')
+			sender = undefined
+
 		const action = {
 			account: 'eosio.evm',
 			name: 'call',
@@ -999,7 +1002,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					action
 				],
 			})
-			const key = PrivateKey.from(fastify.rpcKey)
+			const key = GreymassPrivateKey.from(fastify.rpcKey)
 			const signature = key.signDigest(transaction.signingDigest(info.chain_id))
 			const signedTransaction = SignedTransaction.from({
 				...transaction,
