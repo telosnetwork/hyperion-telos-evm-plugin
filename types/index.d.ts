@@ -1,4 +1,5 @@
 export interface TelosEvmConfig {
+    nodeos_read: string,
     signer_account: string;
     signer_permission: string;
     signer_key: string;

@@ -14,20 +14,26 @@ import {
 } from "../../utils"
 import DebugLogger from "../../debugLogging";
 import {AuthorityProvider, AuthorityProviderArgs, BinaryAbi} from 'eosjs/dist/eosjs-api-interfaces';
-import {PushTransactionArgs} from 'eosjs/dist/eosjs-rpc-interfaces'
 import moment from "moment";
 import {Api} from 'eosjs';
 import {ethers} from 'ethers';
 import {JsSignatureProvider} from 'eosjs/dist/eosjs-jssig'
 import {PrivateKey,Signature} from 'eosjs-ecc'
 import {TransactionVars} from '@telosnetwork/telosevm-js'
-import {handleChainApiRedirect} from "../../../../../api/helpers/functions";
 import {isNil} from "lodash";
+import {
+	API,
+	Action,
+	FetchProvider,
+	Name,
+	PrivateKey as GreymassPrivateKey,
+	SignedTransaction,
+	Struct,
+	Transaction, Bytes, Checksum160,
+} from '@greymass/eosio'
+
 
 const BN = require('bn.js');
-const abiDecoder = require("abi-decoder");
-const abi = require("ethereumjs-abi");
-const createKeccakHash = require('keccak')
 const GAS_PRICE_OVERESTIMATE = 1.00
 const ACTION_BLOCK_LAG = 6;
 
@@ -38,6 +44,33 @@ const REVERT_FUNCTION_SELECTOR = '0x08c379a0'
 const REVERT_PANIC_SELECTOR = '0x4e487b71'
 
 const EOSIO_ASSERTION_PREFIX = 'assertion failure with message: '
+
+
+
+@Struct.type('call')
+export class Call extends Struct {
+	@Struct.field(Name) ram_payer!: Name
+	@Struct.field(Bytes) tx!: Bytes
+	@Struct.field(Checksum160, {optional: true}) sender?: Checksum160
+}
+
+class Refund extends Struct {
+	static abiName = 'call'
+	static abiFields = [
+		{
+			name: 'ram_payer',
+			type: Name,
+		},
+		{
+			name: 'tx',
+			type: Bytes,
+		},
+		{
+			name: 'sender',
+			type: Checksum160,
+		}
+	]
+}
 
 
 function parseRevertReason(revertOutput) {
@@ -202,14 +235,14 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
         // abiProvider,
         signatureProvider,
         authorityProvider,
-        chainId: getInfoResponse.chain_id,
+        chainId: getInfoResponse.chain_id.toString(),
         textDecoder: new TextDecoder(),
         textEncoder: new TextEncoder(),
     }))
 
     // AUX FUNCTIONS
 
-    async function getInfo() {
+    async function getInfo(): Promise<API.v1.GetInfoResponse> {
         const [cachedData, hash, path] = fastify.cacheManager.getCachedData({
             method: 'GET',
             url: 'v1/chain/get_info'
@@ -217,7 +250,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
         if (cachedData) {
             return JSON.parse(cachedData);
         } else {
-            const apiResponse = await fastify.eosjs.rpc.get_info();
+            //const apiResponse = await fastify.eosjs.rpc.get_info();
+			const apiResponse = await fastify.readApi.v1.chain.get_info();
             fastify.cacheManager.setCachedData(hash, path, JSON.stringify(apiResponse));
             return apiResponse;
         }
@@ -936,13 +970,53 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			value: _value.toHexString().replace(/^0x/, ''),
 			sender: txParams.from,
 		};
-		const encodedTx = await fastify.evm.createEthTx(obj);
+		let tx = await fastify.evm.createEthTx(obj);
+		let sender = txParams.from
+
+		if (tx && tx.startsWith('0x')) tx = tx.substring(2)
+		if (sender && sender.startsWith('0x')) sender = sender.substring(2)
+
+		const action = {
+			account: 'eosio.evm',
+			name: 'call',
+			authorization: [
+				{
+					actor: fastify.rpcAccount,
+					permission: fastify.rpcPermission,
+				},
+			],
+			data: Call.from({
+				ram_payer: fastify.rpcAccount,
+				estimate_gas: false,
+				tx, sender
+			})
+		}
 		try {
+			const info = await getInfo()
+			const transaction = Transaction.from({
+				...info.getTransactionHeader(120),
+				actions: [
+					action
+				],
+			})
+			const key = PrivateKey.from(fastify.rpcKey)
+			const signature = key.signDigest(transaction.signingDigest(info.chain_id))
+			const signedTransaction = SignedTransaction.from({
+				...transaction,
+				signatures: [signature],
+			})
+			//fastify.readApi.v1.chain.push_transaction(signedTransaction)
+			const sendResult = fastify.readApi.v1.chain.send_transaction(signedTransaction)
+			const output = '';
+			//fastify.readApi.v1.chain.send_transaction2(signedTransaction)
+
+			/*
 			let output = await fastify.evm.telos.call({
 				account: opts.signer_account,
 				tx: encodedTx,
 				sender: txParams.from,
 			}, fastify.cachingApi, await makeTrxVars());
+			 */
 			return leftPadZerosEvenBytes(output);
 		} catch (e) {
 			if (e.evmCallOutput) {

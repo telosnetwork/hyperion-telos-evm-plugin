@@ -11,6 +11,16 @@ import Bloom from "./bloom";
 import {hLog} from "../../../helpers/common_functions";
 import {blockHexToHash, toChecksumAddress} from "./utils"
 
+import {
+    Action,
+    APIClient,
+    FetchProvider,
+    Name,
+    PrivateKey,
+    SignedTransaction,
+    Struct,
+    Transaction as AntelopeTransaction,
+} from '@greymass/eosio'
 
 const BN = require('bn.js');
 const createKeccakHash = require('keccak');
@@ -334,7 +344,14 @@ export default class TelosEvm extends HyperionPlugin {
             signingPermission: this.pluginConfig.signer_permission
         }));
         server.evm.setDebug(this.pluginConfig.debug);
+
+        server.decorate('rpcAccount', Name.from(this.pluginConfig.signer_account))
+        server.decorate('rpcPermission', Name.from(this.pluginConfig.signer_permission))
+        server.decorate('rpcKey', PrivateKey.from(this.pluginConfig.signer_key))
+        server.decorate('readApi', new APIClient({provider: new FetchProvider(this.pluginConfig.nodeos_read)}))
+
         server.decorate('rpcPayloadHandlerContainer', {});
+
         server.register(autoLoad, {
             dir: join(__dirname, 'routes'),
             dirNameRoutePrefix: false,
