@@ -1016,7 +1016,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			// const sendResult = await fastify.readApi.v1.chain.send_transaction2(signedTransaction)
 			const sendResult = await fastify.readApi.v1.chain.send_transaction(signedTransaction) as any
 		} catch (e) {
-			const error = e.exception.json.error
+			const error = e.response.json.error
 			if (error.code !== 3050003) {
 				throw new Error('This node does not have console printing enabled')
 			}
