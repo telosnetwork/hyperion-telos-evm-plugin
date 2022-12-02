@@ -197,12 +197,13 @@ export function hasTopics(topics: string[], topicsFilter: string[]) {
         return removeZeroHexFromFilter(t, true);
     })
 
-    for (const [index,topic] of topicsFilter.entries()) {
-        if (topic === null) {
+    for (const [index,filterTopic] of topicsFilter.entries()) {
+        const topic = topics[index];
+        if (filterTopic === null) {
             topicsFiltered.push(true);
-        } else if (topic.includes(topics[index])) {
+        } else if (topic === filterTopic) {
             topicsFiltered.push(true);
-        } else if (topics[index] === topic) {
+        } else if (topic !== '' && filterTopic.includes(topic)) {
             topicsFiltered.push(true);
         } else {
             topicsFiltered.push(false);
