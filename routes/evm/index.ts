@@ -29,9 +29,8 @@ import {
 	PrivateKey as GreymassPrivateKey,
 	SignedTransaction,
 	Struct,
-	Transaction, Bytes, Checksum160, GetInfoResponse,
+	Transaction, Bytes, Checksum160, Checksum256, UInt32, TimePoint, UInt64, TransactionHeader,
 } from '@greymass/eosio'
-
 
 const BN = require('bn.js');
 const GAS_PRICE_OVERESTIMATE = 1.00
@@ -45,6 +44,7 @@ const REVERT_PANIC_SELECTOR = '0x4e487b71'
 
 const EOSIO_ASSERTION_PREFIX = 'assertion failure with message: '
 
+let latestGetInfo;
 
 
 @Struct.type('call')
@@ -242,16 +242,20 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
     // AUX FUNCTIONS
 
+	// Because we cannot recreate a GetInfoResponse, right here we only use the cache to track if it's expired, we always set and return latestGetInfo
     async function getInfo(): Promise<API.v1.GetInfoResponse> {
         const [cachedData, hash, path] = fastify.cacheManager.getCachedData({
             method: 'GET',
             url: 'v1/chain/get_info'
         } as FastifyRequest);
         if (cachedData) {
-            return GetInfoResponse.from(JSON.parse(cachedData));
+			// DIRTY HACK BECAUSE WE CAN'T RECREATE A GetInfoResponse
+			return latestGetInfo
         } else {
             //const apiResponse = await fastify.eosjs.rpc.get_info();
 			const apiResponse = await fastify.readApi.v1.chain.get_info();
+			// DIRTY HACK BECAUSE WE CAN'T RECREATE A GetInfoResponse
+			latestGetInfo = apiResponse
             fastify.cacheManager.setCachedData(hash, path, JSON.stringify(apiResponse));
             return apiResponse;
         }
@@ -1011,7 +1015,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			// const sendResult = await fastify.readApi.v1.chain.push_transaction(signedTransaction)
 			// const sendResult = await fastify.readApi.v1.chain.send_transaction2(signedTransaction)
 			const sendResult = await fastify.readApi.v1.chain.send_transaction(signedTransaction) as any
-			const error = sendResult.exception.json.error
+		} catch (e) {
+			const error = e.exception.json.error
 			if (error.code !== 3050003) {
 				throw new Error('This node does not have console printing enabled')
 			}
@@ -1042,10 +1047,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				return leftPadZerosEvenBytes(result);
 			}
 
-			let defaultMessage = `Server Error: Error during call`
+			let defaultMessage = `Server Error: Error during call: ${e.message}`
 			throw new Error(defaultMessage)
-		} catch (e) {
-			throw e;
 		}
 	});
 
