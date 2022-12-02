@@ -29,7 +29,7 @@ import {
 	PrivateKey as GreymassPrivateKey,
 	SignedTransaction,
 	Struct,
-	Transaction, Bytes, Checksum160,
+	Transaction, Bytes, Checksum160, GetInfoResponse,
 } from '@greymass/eosio'
 
 
@@ -248,7 +248,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
             url: 'v1/chain/get_info'
         } as FastifyRequest);
         if (cachedData) {
-            return JSON.parse(cachedData);
+            return GetInfoResponse.from(JSON.parse(cachedData));
         } else {
             //const apiResponse = await fastify.eosjs.rpc.get_info();
 			const apiResponse = await fastify.readApi.v1.chain.get_info();
