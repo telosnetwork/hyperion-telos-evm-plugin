@@ -282,34 +282,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
         }
     }
 
-	async function getSignature(telosTrxId: string): Promise<any> {
-		Logger.log(`searching by telosTrxId: ${telosTrxId}`)
-		try {
-			const results = await fastify.elastic.search({
-				index: `${fastify.manager.chain}-action-*`,
-				body: {
-					size: 1,
-					query: {
-						bool: {
-							must: [
-								{
-									term: { "trx_id": telosTrxId }
-								},{
-									term: { "action_ordinal": 1 }
-								}
-							]
-						}
-					}
-				}
-			});
-			//Logger.log(`searching action by hash: ${trxHash} got result: \n${JSON.stringify(results?.body)}`)
-			return results?.body?.hits?.hits[0]?._source.signatures[0];
-		} catch (e) {
-			console.log(e);
-			return null;
-		}
-	}
-
     async function getParentBlockHash(blockNumberHex: string) {
         let blockNumber = parseInt(blockNumberHex, 16) - 1;
         const results = await fastify.elastic.search({
@@ -405,10 +377,11 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				}
 			});
 			//Logger.log(`searching action by hash: ${trxHash} got result: \n${JSON.stringify(results?.body)}`)
-			let blockDelta = results?.body?.hits?.hits[0]?._source;
-			let blockNumberHex = addHexPrefix(blockNumber.toString(16));
-			let timestamp = new Date(blockDelta['@timestamp']).getTime() / 1000;
-            let blockHash = addHexPrefix(blockDelta["@evmBlockHash"]);
+			const blockDelta = results?.body?.hits?.hits[0]?._source;
+			const blockNumberHex = addHexPrefix(blockNumber.toString(16));
+			const timestamp = new Date(blockDelta['@timestamp']).getTime() / 1000;
+            const blockHash = addHexPrefix(blockDelta["@evmBlockHash"]);
+            const extraData = addHexPrefix(blockDelta['@blockHash']);
 
 			return Object.assign({}, BLOCK_TEMPLATE, {
 				gasUsed: "0x0",
@@ -418,6 +391,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				number: blockNumberHex,
 				timestamp: removeLeftZeros(timestamp?.toString(16)),
 				transactions: [],
+                extraData: extraData
 			});
 		} catch (e) {
 			console.log(e);
@@ -444,8 +418,9 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				return null;
 			}
 
-			let timestamp = new Date(blockDelta['@timestamp'] + 'Z').getTime() / 1000;
-			let blockNumberHex = addHexPrefix(blockDelta["@global"].block_num.toString(16));
+			const timestamp = new Date(blockDelta['@timestamp'] + 'Z').getTime() / 1000;
+			const blockNumberHex = addHexPrefix(blockDelta["@global"].block_num.toString(16));
+            const extraData = addHexPrefix(blockDelta['@blockHash']);
 
 			return Object.assign({}, BLOCK_TEMPLATE, {
 				gasUsed: "0x0",
@@ -455,6 +430,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				number: removeLeftZeros(blockNumberHex),
 				timestamp: removeLeftZeros(timestamp?.toString(16)),
 				transactions: [],
+                extraData: extraData
 			});
 		} catch (e) {
 			console.log(e);
@@ -519,6 +495,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
         const timestamp = new Date(block['@timestamp']).getTime() / 1000;
         const gasUsedBlock = addHexPrefix(removeLeftZeros(new BN(block['gasUsed']).toString('hex')));
         const gasLimitBlock = addHexPrefix(removeLeftZeros(new BN(block['gasLimit']).toString('hex')));
+        const extraData = addHexPrefix(block['@blockHash']);
+        const blockSize = addHexPrefix(block['size'].toString(16));
 
 		logsBloom = addHexPrefix(bloom.bitvector.toString("hex"));
 
@@ -531,7 +509,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			number: removeLeftZeros(blockHex),
 			timestamp: removeLeftZeros(timestamp?.toString(16)),
 			transactions: trxs,
-            size: addHexPrefix(receipts.length.toString(16)),
+            size: blockSize,
+            extraData: extraData,
 
             receiptsRoot: block['@receiptsRootHash'],
             transactionsRoot: block['@transactionsRoot']

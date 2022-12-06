@@ -41,7 +41,7 @@ const NEW_HEADS_TEMPLATE =
 const BLOCK_TEMPLATE =
     Object.assign({
         mixHash: NULL_HASH,
-        size: "0x0",
+        size: "0x21e",
         totalDifficulty: "0x0",
         uncles: []
     }, NEW_HEADS_TEMPLATE);
