@@ -282,26 +282,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
         }
     }
 
-    async function getParentBlockHash(blockNumberHex: string) {
-        let blockNumber = parseInt(blockNumberHex, 16) - 1;
-        const results = await fastify.elastic.search({
-            index: `${fastify.manager.chain}-delta-*`,
-            body: {
-                size: 1,
-                query: {
-                    bool: {
-                        must: [{ term: { "@global.block_num": blockNumber } }]
-                    }
-                }
-            }
-        });
-        let blockDelta = results?.body?.hits?.hits[0]?._source;
-        if (blockDelta)
-            return addHexPrefix(blockDelta["@evmBlockHash"]);
-        else
-            return NULL_HASH;
-    }
-
 	async function getVRS(receiptDoc): Promise<any> {
 		let receipt = receiptDoc["@raw"];
 		const v = addHexPrefix(receipt.v);
@@ -380,12 +360,13 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			const blockDelta = results?.body?.hits?.hits[0]?._source;
 			const blockNumberHex = addHexPrefix(blockNumber.toString(16));
 			const timestamp = new Date(blockDelta['@timestamp']).getTime() / 1000;
-            const blockHash = addHexPrefix(blockDelta["@evmBlockHash"]);
+            const blockHash = addHexPrefix(blockDelta['@evmBlockHash']);
+            const parentHash = addHexPrefix(blockDelta['@evmPrevBlockHash']);
             const extraData = addHexPrefix(blockDelta['@blockHash']);
 
 			return Object.assign({}, BLOCK_TEMPLATE, {
 				gasUsed: "0x0",
-				parentHash: await getParentBlockHash(blockNumberHex),
+				parentHash: parentHash,
 				hash: blockHash,
 				logsBloom: addHexPrefix(new Bloom().bitvector.toString("hex")),
 				number: blockNumberHex,
@@ -421,11 +402,12 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			const timestamp = new Date(blockDelta['@timestamp'] + 'Z').getTime() / 1000;
 			const blockNumberHex = addHexPrefix(blockDelta["@global"].block_num.toString(16));
             const extraData = addHexPrefix(blockDelta['@blockHash']);
+            const parentHash = addHexPrefix(blockDelta['@evmPrevBlockHash']);
 
 			return Object.assign({}, BLOCK_TEMPLATE, {
 				gasUsed: "0x0",
-				parentHash: await getParentBlockHash(blockNumberHex),
-				hash: addHexPrefix(blockDelta["@evmBlockHash"]),
+				parentHash: parentHash,
+				hash: blockHash,
 				logsBloom: addHexPrefix(new Bloom().bitvector.toString("hex")),
 				number: removeLeftZeros(blockNumberHex),
 				timestamp: removeLeftZeros(timestamp?.toString(16)),
@@ -497,13 +479,14 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
         const gasLimitBlock = addHexPrefix(removeLeftZeros(new BN(block['gasLimit']).toString('hex')));
         const extraData = addHexPrefix(block['@blockHash']);
         const blockSize = addHexPrefix(block['size'].toString(16));
+        const parentHash = addHexPrefix(block['@evmPrevBlockHash']);
 
 		logsBloom = addHexPrefix(bloom.bitvector.toString("hex"));
 
 		return Object.assign({}, BLOCK_TEMPLATE, {
 			gasUsed: gasUsedBlock,
             gasLimit: gasLimitBlock,
-			parentHash: await getParentBlockHash(blockHex),
+			parentHash: parentHash,
 			hash: blockHash,
 			logsBloom: logsBloom,
 			number: removeLeftZeros(blockHex),
