@@ -9,7 +9,7 @@ import {
 	logFilterMatch,
 	makeLogObject,
 	BLOCK_TEMPLATE,
-	NULL_HASH, EMPTY_LOGS, removeLeftZeros, leftPadZerosEvenBytes
+	NULL_TRIE, EMPTY_LOGS, removeLeftZeros, leftPadZerosEvenBytes
 } from "../../utils"
 import DebugLogger from "../../debugLogging";
 import {AuthorityProvider, AuthorityProviderArgs} from 'eosjs/dist/eosjs-api-interfaces';
@@ -343,37 +343,48 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	}
 	*/
 
-	async function emptyBlockFromNumber(blockNumber: number) {
-		try {
-			const results = await fastify.elastic.search({
-				index: `${fastify.manager.chain}-delta-*`,
-				body: {
-					size: 1,
-					query: {
-						bool: {
-							must: [{ term: { "@global.block_num": blockNumber } }]
-						}
+    async function getDeltaDocFromNumber(blockNumber: number) {
+		const results = await fastify.elastic.search({
+			index: `${fastify.manager.chain}-delta-*`,
+			body: {
+				size: 1,
+				query: {
+					bool: {
+						must: [{ term: { "@global.block_num": blockNumber } }]
 					}
 				}
-			});
-			//Logger.log(`searching action by hash: ${trxHash} got result: \n${JSON.stringify(results?.body)}`)
-			const blockDelta = results?.body?.hits?.hits[0]?._source;
-			const blockNumberHex = addHexPrefix(blockNumber.toString(16));
-			const timestamp = new Date(blockDelta['@timestamp']).getTime() / 1000;
-            const blockHash = addHexPrefix(blockDelta['@evmBlockHash']);
-            const parentHash = addHexPrefix(blockDelta['@evmPrevBlockHash']);
-            const extraData = addHexPrefix(blockDelta['@blockHash']);
+			}
+		});
+		const blockDelta = results?.body?.hits?.hits[0]?._source;
+		return blockDelta;
+	}
 
-			return Object.assign({}, BLOCK_TEMPLATE, {
-				gasUsed: "0x0",
-				parentHash: parentHash,
-				hash: blockHash,
-				logsBloom: addHexPrefix(new Bloom().bitvector.toString("hex")),
-				number: blockNumberHex,
-				timestamp: removeLeftZeros(timestamp?.toString(16)),
-				transactions: [],
-                extraData: extraData
-			});
+    async function emptyBlockFromDelta(blockDelta: any) {
+		const blockNumberHex = addHexPrefix(blockDelta['@global'].block_num.toString(16));
+		const timestamp = new Date(blockDelta['@timestamp']).getTime() / 1000;
+        const parentHash = addHexPrefix(blockDelta['@evmPrevBlockHash']);
+		const blockHash = addHexPrefix(blockDelta["@evmBlockHash"]);
+		const extraData = addHexPrefix(blockDelta['@blockHash']);
+
+		return Object.assign({}, BLOCK_TEMPLATE, {
+			gasUsed: "0x0",
+			parentHash: parentHash,
+			hash: blockHash,
+			logsBloom: addHexPrefix(new Bloom().bitvector.toString("hex")),
+			number: blockNumberHex,
+			timestamp: removeLeftZeros(timestamp?.toString(16)),
+			transactions: [],
+			extraData: extraData
+		});
+	}
+
+	async function emptyBlockFromNumber(blockNumber: number) {
+		try {
+			const blockDelta = await getDeltaDocFromNumber(blockNumber);
+			if (!blockDelta)
+				return null;
+
+			return await emptyBlockFromDelta(blockDelta);
 		} catch (e) {
 			console.log(e);
 			return null;
@@ -1189,6 +1200,10 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	 */
 	methods.set('eth_getBlockByNumber', async ([block, full]) => {
 		const blockNumber = parseInt(await toBlockNumber(block), 16);
+		const blockDelta = await getDeltaDocFromNumber(blockNumber);
+		if (blockDelta['@transactionsRoot'] === NULL_TRIE)
+			return emptyBlockFromDelta(blockDelta);
+
 		const receipts = await getReceiptsByTerm("@raw.block", blockNumber);
 		return receipts.length > 0 ? await reconstructBlockFromReceipts(receipts, full) : await emptyBlockFromNumber(blockNumber);
 	});
