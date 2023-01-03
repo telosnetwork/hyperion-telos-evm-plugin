@@ -506,8 +506,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
             size: blockSize,
             extraData: extraData,
 
-            receiptsRoot: block['@receiptsRootHash'],
-            transactionsRoot: block['@transactionsRoot']
+            receiptsRoot: addHexPrefix(block['@receiptsRootHash']),
+            transactionsRoot: addHexPrefix(block['@transactionsRoot'])
 		});
 		} catch (e) {
 			console.log(e);
