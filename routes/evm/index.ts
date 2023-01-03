@@ -462,7 +462,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
                     trxs.push(receipt['hash']);
                 } else {
                     const hexBlockNum = removeLeftZeros(blockHex);
-                    const hexGas = removeLeftZeros(numToHex(receipt['gasused']));
+                    const hexGas = removeLeftZeros(numToHex(receipt['gas_limit']));
                     const hexGasPrice = removeLeftZeros(numToHex(receipt['charged_gas_price']));
                     const hexNonce = removeLeftZeros(numToHex(receipt['nonce']));
                     const hexTransactionIndex = removeLeftZeros(numToHex(receipt['trx_index']));
