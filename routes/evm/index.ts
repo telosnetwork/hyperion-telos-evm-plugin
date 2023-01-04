@@ -1124,7 +1124,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			//Logger.log(`get transaction receipt got ${JSON.stringify(receipt)}`)
 			const _blockHash = addHexPrefix(receipt['block_hash']);
 			const _blockNum = numToHex(receipt['block']);
-			const _gas = addHexPrefix((receipt['gasused'] as number).toString(16));
+			const _gas = numToHex(receipt['gasused']);
 			let _contractAddr = null;
 			if (receipt['createdaddr']) {
 				_contractAddr = addHexPrefix(receipt['createdaddr']);
