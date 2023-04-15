@@ -408,10 +408,10 @@
     hash.js "^1.0.0"
     tslib "^2.0.3"
 
-"@telosnetwork/telosevm-js@0.2.8":
-  version "0.2.8"
-  resolved "https://registry.npmjs.org/@telosnetwork/telosevm-js/-/telosevm-js-0.2.8.tgz"
-  integrity sha512-mtW2QxFZyvrNb5QFdY2eLRV/+dfgrsukOyFp/dSRVmid/wFo+3UYe4BE6RgfJULj7ORwo+X/xLUE+EcK3mT2+Q==
+"@telosnetwork/telosevm-js@0.3.1":
+  version "0.3.1"
+  resolved "https://registry.npmjs.org/@telosnetwork/telosevm-js/-/telosevm-js-0.3.1.tgz"
+  integrity sha512-1kwYkQ4ONT7HqjCoUJS0Md/m8PE9CHC3JlRHygaYTy0hoHw9rfhoOKvn0/x7iAt3VehdKpMR6C2dg6CmF8AwVQ==
   dependencies:
     "@ethereumjs/common" "^2.3.1"
     "@ethereumjs/tx" "^3.2.1"
