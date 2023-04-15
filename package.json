@@ -26,7 +26,7 @@
     "@ethereumjs/common": "^2.4.0",
     "@ethereumjs/tx": "^3.3.0",
     "@greymass/eosio": "^0.6.4",
-    "@telosnetwork/telosevm-js": "0.2.8",
+    "@telosnetwork/telosevm-js": "0.3.1",
     "@types/uws": "^0.13.3",
     "abi-decoder": "^2.4.0",
     "bn.js": "^5.2.0",

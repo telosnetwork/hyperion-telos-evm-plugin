@@ -803,8 +803,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	methods.set('eth_getCode', async ([address]) => {
 		try {
 			const account = await fastify.evm.telos.getEthAccount(address.toLowerCase());
-			if (account.code && account.code.length > 0) {
-				return "0x" + Buffer.from(account.code).toString("hex");
+			if (account && account.code && account.code.length > 0) {
+				return account.code;
 			} else {
 				return "0x";
 			}
@@ -830,10 +830,8 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			txParams.value = isNaN(intValue) ? 0 : intValue;
 		}
 
-		try {
-			// this throws if account not found
-			 await fastify.evm.telos.getEthAccount(txParams.from.toLowerCase());
-		} catch (e) {
+		const account = await fastify.evm.telos.getEthAccount(txParams.from.toLowerCase());
+		if (!account) {
 			let err = new TransactionError('Insufficient funds');
 			err.errorMessage = 'The sender address has a zero balance';
 			throw err;
@@ -929,6 +927,9 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	methods.set('eth_getBalance', async ([address]) => {
 		try {
 			const account = await fastify.evm.telos.getEthAccount(address.toLowerCase());
+			if (!account) {
+				return "0x0";
+			}
 			const bal = account.balance as number;
 			return removeLeftZeros(bal.toString(16));
 		} catch (e) {
@@ -943,6 +944,9 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	methods.set('eth_getBalanceHuman', async ([address]) => {
 		try {
 			const account = await fastify.evm.telos.getEthAccount(address.toLowerCase());
+			if (!account) {
+				return "0";
+			}
 			const bal = account.balance as typeof BN;
 			// @ts-ignore
 			const balConverted = bal / decimalsBN;
