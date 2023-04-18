@@ -791,7 +791,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		try {
 			const account = await fastify.evm.telos.getEthAccount(address.toLowerCase());
 			if (account && account.code && account.code.length > 0) {
-				return addHexPrefix(Buffer.from(account.code).toString("hex"));
+				return account.code;
 			} else {
 				return "0x";
 			}
