@@ -1190,7 +1190,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			to: toChecksumAddress(receipt['to']),
 			transactionIndex: removeLeftZeros(numToHex(receipt['trx_index'])),
 			value: removeLeftZeros(numToHex(receipt['value'])),
-			v: removeLeftZeros(v),
+			v: removeLeftZeros(numToHex(v)),
 			r, s
 		};
 	});
