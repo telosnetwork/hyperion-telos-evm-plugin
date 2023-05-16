@@ -37,7 +37,7 @@
     "ethers": "^5.7.0",
     "keccak": "^3.0.2",
     "reconnecting-websocket": "^4.4.0",
-    "uWebSockets.js": "github:uNetworking/uWebSockets.js#v20.15.0",
+    "uWebSockets.js": "github:uNetworking/uWebSockets.js#v20.14.0",
     "ws": "^8.3.0"
   },
   "devDependencies": {
