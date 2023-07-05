@@ -7,7 +7,8 @@ const SIG_CACHE_EXPIRE = 60 * 60 * 24; // 24hrs
 const FOUR_BYTE_URL = `https://www.4byte.directory`
 
 const sigDirectoryAxios = axios.create({
-	baseURL: FOUR_BYTE_URL
+	baseURL: FOUR_BYTE_URL,
+	timeout: 1000
 });
 
 async function getAbiSignature(fastify: FastifyInstance, request: FastifyRequest) {
