@@ -1016,13 +1016,15 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	 * Submits transaction for broadcast to the Ethereum network.
 	 */
 	methods.set('eth_sendTransaction', async ([txParams]) => {
-		const buf = Buffer.from(txParams.value.slice(2), "hex");
-		const encodedTx = await fastify.evm.createEthTx({
+		let params = {
 			...txParams,
-			value: new BN(buf),
 			rawSign: true,
 			sender: txParams.from,
-		});
+		}
+		if(txParams.value){
+			params.value = new BN(Buffer.from(txParams.value.slice(2), "hex"))
+		}
+		const encodedTx = await fastify.evm.createEthTx(params);
 		try {
 			const rawData = await fastify.evm.telos.raw({
 				account: opts.signer_account,
