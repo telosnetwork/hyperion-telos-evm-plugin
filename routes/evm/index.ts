@@ -181,7 +181,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	const METAMASK_EXTENSION_ORIGIN = 'chrome-extension://nkbihfbeogaeaoehlefnkodbefgpgknn';
 	const GAS_OVER_ESTIMATE_MULTIPLIER = 1.25;
 	let Logger = new DebugLogger(opts.debug);
-	
+
 
     // Setup Api instance just for signing, to optimize eosjs so it doesn't call get_required_keys every time
     // TODO: Maybe cache the ABI here if eosjs doesn't already
@@ -458,7 +458,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 		let logsBloom: any = null;
 		let bloom = new Bloom();
 		const trxs = [];
-		//Logger.log(`Reconstructing block from receipts: ${JSON.stringify(receipts)}`)	
+		//Logger.log(`Reconstructing block from receipts: ${JSON.stringify(receipts)}`)
 		for (const receiptDoc of receipts) {
 			const {v, r, s} = await getVRS(receiptDoc._source);
 			const receipt = receiptDoc._source['@raw'];
@@ -936,7 +936,15 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			value: _value.toHexString().replace(/^0x/, ''),
 			sender: txParams.from,
 		};
-		const encodedTx = await fastify.evm.createEthTx(obj);
+		let encodedTx;
+		try {
+			encodedTx = await fastify.evm.createEthTx(obj);
+		} catch (e) {
+			let err = new TransactionError('Transaction error');
+			err.errorMessage =	'Could not create ETH transaction: ' + e.message.split('at')[0];
+			throw err;
+		}
+
 		try {
 			let output = await fastify.evm.telos.call({
 				account: opts.signer_account,
@@ -1349,7 +1357,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	 * Returns the internal transaction trace filter matching the given filter object.
 	 * https://openethereum.github.io/JSONRPC-trace-module#trace_filter
 	 * curl --data '{"method":"trace_filter","params":[{"fromBlock":"0x2ed0c4","toBlock":"0x2ed128","toAddress":["0x8bbB73BCB5d553B5A556358d27625323Fd781D37"],"after":1000,"count":100}],"id":1,"jsonrpc":"2.0"}' -H "Content-Type: application/json" -X POST localhost:7000/evm
-	 * 
+	 *
 	 * Check the eth_getlogs function above for help
 	 */
 	methods.set('trace_filter', async ([parameters]) => {
@@ -1392,7 +1400,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				}
 				queryBody.bool.must.push(rangeObj);
 			}
-			
+
 			if (fromAddress) {
 				// console.log(fromAddress);
 				const matchFrom = { terms: { "@raw.itxs.from": {} } };
@@ -1452,7 +1460,7 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				console.log(JSON.stringify(e, null, 2));
 				return [];
 			}
-		}	
+		}
 		return results;
 	});
 
@@ -1612,10 +1620,10 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			 } catch (e) {
 				 if (e instanceof TransactionError) {
 					 let code = e.code || 3;
-					 let message = e.errorMessage?.replace(/\0.*$/g,'');;
+					 let message = e.errorMessage?.replace(/\0.*$/g,'');
 					 let data = e.data;
 					 let error = { code, data, message };
-					 console.log(`RPCREVERT: ${new Date().toISOString()} - | Method: ${method} | VM execution error, reverted with message: ${e.errorMessage} \n\n REQ: ${JSON.stringify(params)}\n\n ERROR RESP: ${JSON.stringify(error)}`);
+					 console.log(`RPCREVERT: ${new Date().toISOString()} - ${ip} - | Method: ${method} | VM execution error, reverted with message: ${e.errorMessage} \n\n REQ: ${JSON.stringify(params)}\n\n ERROR RESP: ${JSON.stringify(error)}`);
 					 return { jsonrpc, id, error };
 				 }
 
@@ -1631,11 +1639,11 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 					 error.message = e?.message;
 				 }
 
-				 console.log(`RPCERROR: ${new Date().toISOString()} - ${JSON.stringify({error, exception: e})} | Method: ${method} | REQ: ${JSON.stringify(params)}`);
+				 console.log(`RPCERROR: ${new Date().toISOString()} - ${JSON.stringify({error, exception: e})} - ${ip} | Method: ${method} | REQ: ${JSON.stringify(params)}`);
 				 return { jsonrpc, id, error };
 			 }
 		 } else {
-			 console.log(`METHODNOTFOUND: ${new Date().toISOString()} - ${method}`);
+			 console.log(`METHODNOTFOUND: ${new Date().toISOString()} - ${method} - ${ip}`);
 			 return jsonRPC2Error(reply, 'MethodNotFound', id, `Invalid method: ${method}`);
 		 }
 	 }
