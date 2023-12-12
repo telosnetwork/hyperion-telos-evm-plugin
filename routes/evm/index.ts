@@ -763,7 +763,12 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 	 * Returns the number of transactions sent from an address.
 	 */
 	methods.set('eth_getTransactionCount', async ([address]) => {
-		return removeLeftZeros(await fastify.evm.telos.getNonce(address.toLowerCase()));
+		try {
+			let response = await fastify.evm.telos.getNonce(address.toLowerCase())
+			return removeLeftZeros(response);
+		} catch (e) {	
+			throw e;
+		}
 	});
 
 	/**
@@ -936,16 +941,9 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 			value: _value.toHexString().replace(/^0x/, ''),
 			sender: txParams.from,
 		};
-		let encodedTx;
-		try {
-			encodedTx = await fastify.evm.createEthTx(obj);
-		} catch (e) {
-			let err = new TransactionError('Transaction error');
-			err.errorMessage =	'Could not create ETH transaction: ' + e.message.split('at')[0];
-			throw err;
-		}
 
 		try {
+			let encodedTx = await fastify.evm.createEthTx(obj);
 			let output = await fastify.evm.telos.call({
 				account: opts.signer_account,
 				tx: encodedTx,
@@ -968,7 +966,6 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 
 				throw err;
 			}
-
 			throw e;
 		}
 	});
