@@ -300,9 +300,15 @@ export default async function (fastify: FastifyInstance, opts: TelosEvmConfig) {
 				s = '0x00000000000000000000000000000000000000000000000000000000000000';
 			} else {
 				let sig = Signature.fromString(sigString);
-				v = `0x${sig.i.toString(16)}`;
-				r = `0x${sig.r.toHex().padStart(64, '0')}`;
-				s = `0x${sig.s.toHex()}`;
+				if (!sig) {
+					v = "0x00";
+					r = "0x0000000000000000000000000000000000000000000000000000000000000000";
+					s = "0x0000000000000000000000000000000000000000000000000000000000000000";
+				} else {
+					 v = `0x${sig.i.toString(16)}`;
+					 r = `0x${sig.r.toHex().padStart(64, '0')}`;
+					 s = `0x${sig.s.toHex()}`;
+				}
 			}
 		} else {
 			v = "0x" + receipt.v;
